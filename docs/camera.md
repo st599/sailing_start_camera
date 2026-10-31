@@ -68,6 +68,19 @@ WiFi connection. This is only an upper limit, from three frames of a whole-secon
 on a screen, and relies on a clock offset read from a blurry image. It is not an exact
 value or a typical one.
 
-Delay depends on the WiFi path, so `capture_latency_ms` should be measured on the final
-setup. Fix the camera in place, aimed at a clock, and compare the clock in each frame
-with the time that frame arrives. The computer's clock must be synchronised first.
+Delay depends on the WiFi path, so measure it again with the camera installed, and
+whenever the network changes. You need a phone or laptop on the same network:
+
+```bash
+startcam-delay --config config.json --secrets secrets.json --write
+```
+
+1. Open the address it logs on the phone or laptop, and turn the brightness up.
+2. Hold the screen still in front of the camera, filling as much of the view as you can.
+3. Press Enter. The screen flashes white every 5 seconds for the 45 second measurement.
+
+`--write` saves the result as `capture_latency_ms`; leave it out to only see the result.
+Use `--host <camera-ip>` if the configuration has no camera address. The page syncs to
+the measuring computer's clock, so neither clock needs to be correct. If the camera or
+screen moves, the command reports an error instead of a value, and saves nothing.
+Delays of up to about 4.5 s can be measured.
