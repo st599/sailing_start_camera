@@ -223,5 +223,6 @@ __marimo__/
 # CLAUDE
 CLAUDE.md
 
-# Local secrets
+# Local configuration and secrets
+config.json
 secrets.json

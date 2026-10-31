@@ -69,7 +69,14 @@ on a screen, and relies on a clock offset read from a blurry image. It is not an
 value or a typical one.
 
 Delay depends on the WiFi path, so measure it again with the camera installed, and
-whenever the network changes. You need a phone or laptop on the same network:
+whenever the network changes. You need a phone or laptop on the same network, and a
+`config.json` in the current folder. If you don't have one yet, this is enough:
+
+```json
+{ "version": 1, "camera": { "host": "<camera-ip>" } }
+```
+
+Then run:
 
 ```bash
 startcam-delay --config config.json --secrets secrets.json --write
