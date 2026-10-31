@@ -23,6 +23,9 @@ URL format: `rtsp://<username>:<password>@<camera-ip>:554/av_stream/<channel>`
 | `ch0` | H.264 High, 2304×1296, yuv420p | 20 fps | Every 3 s | 1417 kbps |
 | `ch1` | H.264 High, 640×360, yuv420p | 20 fps | Every 2 s | 205 kbps |
 
+- **The frame rate can change.** The rates above were measured first, but about an hour
+  later, on the same evening, both channels reported and delivered exactly 10 fps. The
+  cause isn't known. The application mustn't assume the camera's frame rate.
 - Both channels also carry audio: G.711 A-law (`pcm_alaw`), 8 kHz, mono.
 - TCP and UDP transport both work. RTSP isn't encrypted, so use it only on a trusted
   network.
