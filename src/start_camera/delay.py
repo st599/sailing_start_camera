@@ -35,7 +35,6 @@ import time
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import quote
 
 import numpy as np
 from numpy.typing import NDArray
@@ -44,13 +43,12 @@ from numpy.typing import NDArray
 # PROJECT IMPORTS
 #
 from start_camera.config import (
-    Config,
     ConfigError,
-    Secrets,
     load_config,
     load_secrets,
     save_config,
 )
+from start_camera.discovery import build_rtsp_url
 from start_camera.logging_setup import configure_logging
 
 #
@@ -154,19 +152,6 @@ def local_address(remote_host: str) -> str:
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         sock.connect((remote_host, 9))
         return sock.getsockname()[0]
-
-
-def build_rtsp_url(config: Config, secrets: Secrets, host: str) -> str:
-    """Return the camera's RTSP URL. It contains credentials, so never log it."""
-    credentials = ""
-    if secrets.camera_username is not None:
-        credentials = quote(secrets.camera_username.get_secret_value(), safe="")
-        if secrets.camera_password is not None:
-            password = quote(secrets.camera_password.get_secret_value(), safe="")
-            credentials += f":{password}"
-        credentials += "@"
-    camera = config.camera
-    return f"rtsp://{credentials}{host}:{camera.rtsp_port}{camera.rtsp_path}"
 
 
 def capture_frames(

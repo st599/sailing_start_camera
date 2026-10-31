@@ -40,9 +40,13 @@ from start_camera.gui import app
     ("main", "name"), [(cli.main, "startcam"), (app.main, "startcam-gui")]
 )
 def test_main_logs_start_without_using_stdout(
-    main: Callable[[], int], name: str, capsys: pytest.CaptureFixture[str]
+    main: Callable[[], int],
+    name: str,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Each application logs that it started, exits cleanly and leaves stdout alone."""
+    monkeypatch.setattr("sys.argv", [name])
     result = main()
     captured = capsys.readouterr()
     assert result == 0
@@ -50,7 +54,7 @@ def test_main_logs_start_without_using_stdout(
     assert captured.out == ""
 
 
-@pytest.mark.parametrize("name", ["startcam", "startcam-gui"])
+@pytest.mark.parametrize("name", ["startcam", "startcam-gui", "startcam-delay"])
 def test_entry_point_is_installed(name: str) -> None:
     """The console commands are declared by the installed package."""
     assert entry_points(group="console_scripts", name=name)
