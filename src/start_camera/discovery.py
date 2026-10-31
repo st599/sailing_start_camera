@@ -107,7 +107,7 @@ def build_rtsp_url(
     return f"rtsp://{credentials}{host}:{camera.rtsp_port}{camera.rtsp_path}"
 
 
-def _primary_address() -> str | None:
+def primary_address() -> str | None:
     """Return the address of the default route. Connecting sends no traffic."""
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         try:
@@ -127,7 +127,7 @@ def _interface_addresses() -> list[tuple[str, int]]:
         interfaces = json.loads(reply.stdout)
     except (OSError, subprocess.SubprocessError, ValueError):
         logger.debug("Can't list interfaces with ip; using the default route")
-        primary = _primary_address()
+        primary = primary_address()
         return [(primary, DEFAULT_PREFIX)] if primary else []
     return [
         (info["local"], info["prefixlen"])
