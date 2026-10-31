@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "start-camera"
+description = "A start line camera for sailing races."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Simon st599" }]
+dynamic = ["version"]
+dependencies = []
+
+[project.optional-dependencies]
+gui = ["PySide6-Essentials>=6.7"]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.scripts]
+startcam = "start_camera.cli:main"
+startcam-gui = "start_camera.gui.app:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "start_camera.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+extend-exclude = ["example_layout.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "T20", "ANN", "D1"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D1"]
