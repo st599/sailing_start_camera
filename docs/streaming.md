@@ -12,10 +12,21 @@ Press Ctrl+C to stop. It logs the addresses that viewers can open:
 |---|---|---|
 | WebRTC | `http://<computer-ip>:8889/start/` | Lowest delay, in a browser |
 | HLS | `http://<computer-ip>:8888/start/` | Most compatible, in a browser; higher delay |
-| RTSP | `rtsp://<computer-ip>:8554/start` | VLC and similar players |
+| RTSP | `rtsp://<computer-ip>:8554/start` | Players with RTSP support, such as `ffplay` |
 
 RTSP is served over TCP only. A player that tries UDP first may take a few seconds to
-switch.
+switch, and some need telling, as in this example:
+
+```bash
+ffplay -rtsp_transport tcp rtsp://<computer-ip>:8554/start
+```
+
+### VLC
+
+Open the HLS playlist: `http://<computer-ip>:8888/start/index.m3u8`.
+
+Ubuntu's VLC 3.0.20 package has no `live555` module, so it can't open RTSP from any
+source, including the camera directly. It reports "VLC is unable to open the MRL".
 
 The ports come from the `stream` section of the configuration.
 
