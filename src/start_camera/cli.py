@@ -10,7 +10,7 @@
 #  Author: Simon st599
 #  Copyright: Simon st599 MMXXVI
 #  Licence: MIT
-#  Dependencies: ffmpeg
+#  Dependencies: ffmpeg, MediaMTX
 #
 #########################################################
 
@@ -22,7 +22,10 @@
 
 import argparse
 import logging
+import signal
+import threading
 from pathlib import Path
+from types import FrameType
 
 #
 # PROJECT IMPORTS
@@ -39,9 +42,18 @@ from start_camera.discovery import (
     DiscoveryError,
     discover,
     log_candidates,
+    primary_address,
     select_camera,
 )
+from start_camera.ingest import FrameSource
 from start_camera.logging_setup import configure_logging
+from start_camera.media_server import (
+    MediaServer,
+    MediaServerError,
+    ensure_binary,
+    viewer_urls,
+)
+from start_camera.output import Publisher
 
 #
 #  GLOBAL VARIABLES
@@ -90,16 +102,56 @@ def _scan(arguments: argparse.Namespace) -> None:
         save_config(config, arguments.config)
 
 
+def _wait_for_shutdown() -> None:
+    """Wait until the application is asked to stop."""
+    stop = threading.Event()
+
+    def request_stop(number: int, frame: FrameType | None) -> None:
+        stop.set()
+
+    for number in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(number, request_stop)
+    stop.wait()
+
+
+def _stream(arguments: argparse.Namespace) -> None:
+    """Publish the camera with the configuration until asked to stop."""
+    config = load_config(arguments.config)
+    secrets = load_secrets(arguments.secrets)
+    server = MediaServer(config.stream, ensure_binary())
+    address = primary_address() or "localhost"
+    for name, url in viewer_urls(config.stream, address).items():
+        logger.info("%s stream: %s", name, url)
+    try:
+        with (
+            FrameSource(config, secrets) as source,
+            Publisher(source, server, config.stream),
+        ):
+            _wait_for_shutdown()
+    finally:
+        server.stop()
+    logger.info("Stopped")
+
+
 def main() -> int:
     """Run the command-line application and return its exit code."""
     configure_logging()
     arguments = _parse_arguments()
     logger.info("startcam %s started", __version__)
-    if not arguments.scan:
+    if not arguments.scan and not arguments.config:
         return 0
     try:
-        _scan(arguments)
-    except (ConfigError, DiscoveryError, OSError, ValueError) as error:
+        if arguments.scan:
+            _scan(arguments)
+        else:
+            _stream(arguments)
+    except (
+        ConfigError,
+        DiscoveryError,
+        MediaServerError,
+        OSError,
+        ValueError,
+    ) as error:
         logger.error("%s", error)
         return 1
     return 0
