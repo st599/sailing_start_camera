@@ -61,7 +61,13 @@ used about 26% of one CPU core on a laptop; this hasn't been measured on a Raspb
 - **Lens:** strong wide-angle distortion curves straight lines, particularly near the
   frame edges, so a straight start line fit won't suit every camera position.
 
-## Not yet measured
+## Delay
 
-**Delay from camera to decoded frame.** It needs the camera pointed at a clock on the
-computer's screen, comparing the clock in each frame with the time that frame arrives.
+The delay from camera to decoded frame is at most about 0.7-0.8 s on `ch0`, over a good
+WiFi connection. This is only an upper limit, from three frames of a whole-second clock
+on a screen, and relies on a clock offset read from a blurry image. It is not an exact
+value or a typical one.
+
+Delay depends on the WiFi path, so `capture_latency_ms` should be measured on the final
+setup. Fix the camera in place, aimed at a clock, and compare the clock in each frame
+with the time that frame arrives. The computer's clock must be synchronised first.
