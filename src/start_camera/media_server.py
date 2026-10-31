@@ -221,11 +221,12 @@ def publish_url(stream: StreamConfig) -> str:
 
 
 def viewer_urls(stream: StreamConfig, address: str) -> dict[str, str]:
-    """Return the addresses that viewers can open, by protocol."""
+    """Return the addresses that viewers can open, by use."""
     return {
-        "HLS": f"http://{address}:{stream.hls_port}/{STREAM_PATH}/",
-        "WebRTC": f"http://{address}:{stream.webrtc_port}/{STREAM_PATH}/",
-        "RTSP": f"rtsp://{address}:{stream.rtsp_port}/{STREAM_PATH}",
+        "TV or browser": f"http://{address}:{stream.viewer_port}/",
+        "Lowest delay browser": f"http://{address}:{stream.viewer_port}/live",
+        "TV media player": f"http://{address}:{stream.viewer_port}/stream.m3u8",
+        "RTSP player": f"rtsp://{address}:{stream.rtsp_port}/{STREAM_PATH}",
     }
 
 

@@ -17,6 +17,7 @@
     "rtsp_port": 8554,
     "hls_port": 8888,
     "webrtc_port": 8889,
+    "viewer_port": 8080,
     "youtube_enabled": false
   },
   "overlays": {

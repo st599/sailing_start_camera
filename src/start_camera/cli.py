@@ -23,6 +23,7 @@
 import argparse
 import logging
 import signal
+import socket
 import threading
 from pathlib import Path
 from types import FrameType
@@ -54,6 +55,7 @@ from start_camera.media_server import (
     viewer_urls,
 )
 from start_camera.output import Publisher
+from start_camera.viewer import ViewerServer
 
 #
 #  GLOBAL VARIABLES
@@ -119,9 +121,14 @@ def _stream(arguments: argparse.Namespace) -> None:
     config = load_config(arguments.config)
     secrets = load_secrets(arguments.secrets)
     server = MediaServer(config.stream, ensure_binary())
+    viewer = ViewerServer(config.stream)
     address = primary_address() or "localhost"
     for name, url in viewer_urls(config.stream, address).items():
-        logger.info("%s stream: %s", name, url)
+        logger.info("%s: %s", name, url)
+    logger.info(
+        "If the address changes, http://%s.local:%d/ may still work",
+        socket.gethostname(), config.stream.viewer_port,
+    )  # fmt: skip
     try:
         with (
             FrameSource(config, secrets) as source,
@@ -129,6 +136,7 @@ def _stream(arguments: argparse.Namespace) -> None:
         ):
             _wait_for_shutdown()
     finally:
+        viewer.stop()
         server.stop()
     logger.info("Stopped")
 

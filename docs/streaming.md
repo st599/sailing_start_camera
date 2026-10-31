@@ -8,11 +8,34 @@ venv/bin/startcam --config config.json --secrets secrets.json
 
 Press Ctrl+C to stop. It logs the addresses that viewers can open:
 
-| Protocol | Address | Use |
-|---|---|---|
-| WebRTC | `http://<computer-ip>:8889/start/` | Lowest delay, in a browser |
-| HLS | `http://<computer-ip>:8888/start/` | Most compatible, in a browser; higher delay |
-| RTSP | `rtsp://<computer-ip>:8554/start` | Players with RTSP support, such as `ffplay` |
+| Use | Address |
+|---|---|
+| Smart TV or any browser | `http://<computer-ip>:8080/` |
+| Lowest delay, in a browser | `http://<computer-ip>:8080/live` |
+| Media player on a TV or computer, including VLC | `http://<computer-ip>:8080/stream.m3u8` |
+| RTSP player | `rtsp://<computer-ip>:8554/start` |
+
+The ports come from the `stream` section of the configuration.
+
+If the computer's IP address changes, `http://<computer-name>.local:8080/` can keep working
+on devices that support mDNS. Many TVs don't, so reserve the computer's IP address on the
+router if you can.
+
+## Watching on a smart TV
+
+Try these in order:
+
+1. **TV browser:** open `http://<computer-ip>:8080/`, and bookmark it if the TV allows.
+2. **Media player app:** in VLC or a similar app on the TV, open
+   `http://<computer-ip>:8080/stream.m3u8`. If the app needs the final address, use
+   `http://<computer-ip>:8888/start/index.m3u8`.
+3. **A device plugged into the TV:** a computer or streaming stick with a browser or media
+   player can use the same addresses.
+
+The stream is H.264 in HLS over plain HTTP, which is widely supported. It isn't offered
+over DLNA, so a TV's DLNA or "media server" menu won't list it.
+
+### RTSP players
 
 RTSP is served over TCP only. A player that tries UDP first may take a few seconds to
 switch, and some need telling, as in this example:
@@ -21,14 +44,22 @@ switch, and some need telling, as in this example:
 ffplay -rtsp_transport tcp rtsp://<computer-ip>:8554/start
 ```
 
-### VLC
-
-Open the HLS playlist: `http://<computer-ip>:8888/start/index.m3u8`.
-
 Ubuntu's VLC 3.0.20 package has no `live555` module, so it can't open RTSP from any
-source, including the camera directly. It reports "VLC is unable to open the MRL".
+source, including the camera directly. It reports "VLC is unable to open the MRL". Use the
+media player address above instead.
 
-The ports come from the `stream` section of the configuration.
+## Delay
+
+Measured from encoding a frame to its display in Firefox, on the same computer:
+
+| Route | Delay |
+|---|---|
+| WebRTC (`/live`) | About 60-70 ms |
+| HLS with the browser player (`/`) | About 5.8 s |
+
+Delay across the network and from the camera comes on top, as does YouTube's own delay for
+public viewers. HLS delay varies between sessions and players, and a TV may buffer more.
+Every viewer's burned-in clock stays in step with their video.
 
 ## How it behaves
 
@@ -50,5 +81,5 @@ Raspberry Pi 5 running a 64-bit OS.
 
 ## Firewalls
 
-Viewers need these ports open on the computer: TCP 8554, 8888 and 8889, and UDP 8189 for
-WebRTC.
+Viewers need these ports open on the computer: TCP 8080, 8554, 8888 and 8889, and UDP 8189
+for WebRTC.

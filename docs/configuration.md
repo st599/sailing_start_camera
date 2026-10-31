@@ -28,7 +28,13 @@ are errors that name the field at fault.
 | `fps` | `20` | Output frame rate; the Cam-S3W sends 20 fps |
 | `bitrate_kbps` | `2500` | Output video bitrate |
 | `keyframe_interval_s` | `2` | Seconds between keyframes |
-| `rtsp_port`, `hls_port`, `webrtc_port` | `8554`, `8888`, `8889` | Viewer ports; must be different |
+| `rtsp_port`, `hls_port`, `webrtc_port` | `8554`, `8888`, `8889` | Stream ports |
+| `viewer_port` | `8080` | Port of the viewer pages |
+
+All the stream's ports must be different.
+
+| Field | Default | Meaning |
+|---|---|---|
 | `youtube_enabled` | `false` | Push the stream to YouTube Live |
 
 ### `overlays`
