@@ -10,7 +10,7 @@ requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Simon st599" }]
 dynamic = ["version"]
-dependencies = []
+dependencies = ["numpy>=1.26", "pydantic>=2.7"]
 
 [project.optional-dependencies]
 gui = ["PySide6-Essentials>=6.7"]
@@ -19,6 +19,7 @@ dev = ["pytest>=8", "ruff>=0.6"]
 [project.scripts]
 startcam = "start_camera.cli:main"
 startcam-gui = "start_camera.gui.app:main"
+startcam-delay = "start_camera.delay:main"
 
 [tool.setuptools.dynamic]
 version = { attr = "start_camera.__version__" }
