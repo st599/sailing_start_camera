@@ -28,7 +28,8 @@ Try these in order:
 1. **TV browser:** open `http://<computer-ip>:8080/`, and bookmark it if the TV allows.
 2. **Media player app:** in VLC or a similar app on the TV, open
    `http://<computer-ip>:8080/stream.m3u8`. If the app needs the final address, use
-   `http://<computer-ip>:8888/start/index.m3u8`.
+   `http://<computer-ip>:8888/start/index.m3u8`. Some TVs' built-in media players have no
+   way to enter an address, so this won't be an option on every TV.
 3. **A device plugged into the TV:** a computer or streaming stick with a browser or media
    player can use the same addresses.
 
