@@ -16,7 +16,7 @@ are errors that name the field at fault.
 | `host` | `null` | Camera IP address or name. `null` means find it by scanning |
 | `mac` | `null` | Camera MAC address, used to find it again if its IP changes |
 | `rtsp_port` | `554` | Camera RTSP port |
-| `rtsp_path` | `null` | Camera stream path |
+| `rtsp_path` | `/av_stream/ch0` | Camera stream path; `/av_stream/ch1` is the low resolution stream |
 | `capture_latency_ms` | `0` | Camera delay, corrected for in the race clock |
 
 ### `stream`
@@ -24,7 +24,7 @@ are errors that name the field at fault.
 | Field | Default | Meaning |
 |---|---|---|
 | `width`, `height` | `1280`, `720` | Output size; must be even numbers |
-| `fps` | `25` | Output frame rate |
+| `fps` | `20` | Output frame rate; the Cam-S3W sends 20 fps |
 | `bitrate_kbps` | `2500` | Output video bitrate |
 | `keyframe_interval_s` | `2` | Seconds between keyframes |
 | `rtsp_port`, `hls_port`, `webrtc_port` | `8554`, `8888`, `8889` | Viewer ports; must be different |

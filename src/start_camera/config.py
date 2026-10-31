@@ -122,7 +122,7 @@ class CameraConfig(StrictModel):
         default=None, pattern=r"^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}$"
     )
     rtsp_port: Port = 554
-    rtsp_path: str | None = Field(default=None, min_length=1)
+    rtsp_path: str = Field(default="/av_stream/ch0", min_length=1)
     capture_latency_ms: int = Field(default=0, ge=0, le=60000)
 
 
@@ -131,7 +131,7 @@ class StreamConfig(StrictModel):
 
     width: int = Field(default=1280, ge=16, le=7680, multiple_of=2)
     height: int = Field(default=720, ge=16, le=4320, multiple_of=2)
-    fps: int = Field(default=25, ge=1, le=60)
+    fps: int = Field(default=20, ge=1, le=60)
     bitrate_kbps: int = Field(default=2500, ge=100, le=50000)
     keyframe_interval_s: int = Field(default=2, ge=1, le=10)
     rtsp_port: Port = 8554

@@ -94,6 +94,12 @@ def test_version_alone_gives_defaults(tmp_path: Path) -> None:
     assert load_config(path) == Config()
 
 
+def test_defaults_match_the_camera() -> None:
+    config = Config()
+    assert config.camera.rtsp_path == "/av_stream/ch0"
+    assert config.stream.fps == 20
+
+
 def test_default_sequence_is_five_minutes() -> None:
     events = default_flag_events()
     assert [(e.minutes_before_start, e.flag, e.action.value) for e in events] == [

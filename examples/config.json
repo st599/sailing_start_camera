@@ -4,13 +4,13 @@
     "host": "192.0.2.10",
     "mac": "00:00:5e:00:53:01",
     "rtsp_port": 554,
-    "rtsp_path": "/example",
+    "rtsp_path": "/av_stream/ch0",
     "capture_latency_ms": 800
   },
   "stream": {
     "width": 1280,
     "height": 720,
-    "fps": 25,
+    "fps": 20,
     "bitrate_kbps": 2500,
     "keyframe_interval_s": 2,
     "rtsp_port": 8554,
