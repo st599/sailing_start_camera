@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "camera": {
+    "host": "192.0.2.10",
+    "mac": "00:00:5e:00:53:01",
+    "rtsp_port": 554,
+    "rtsp_path": "/example",
+    "capture_latency_ms": 800
+  },
+  "stream": {
+    "width": 1280,
+    "height": 720,
+    "fps": 25,
+    "bitrate_kbps": 2500,
+    "keyframe_interval_s": 2,
+    "rtsp_port": 8554,
+    "hls_port": 8888,
+    "webrtc_port": 8889,
+    "youtube_enabled": false
+  },
+  "overlays": {
+    "datetime": {
+      "enabled": true,
+      "position": "top_left",
+      "scale": 1.0,
+      "colour": "#ffffff",
+      "format": "%Y-%m-%d %H:%M:%S"
+    },
+    "countdown": {
+      "enabled": true,
+      "position": "top_right",
+      "scale": 1.5,
+      "colour": "#ffff00"
+    },
+    "flags": {
+      "enabled": true,
+      "position": "bottom_right",
+      "scale": 1.0,
+      "show_labels": true
+    }
+  },
+  "start_line": {
+    "enabled": true,
+    "points": [
+      { "x": 0.05, "y": 0.62 },
+      { "x": 0.5, "y": 0.6 },
+      { "x": 0.95, "y": 0.63 }
+    ],
+    "fit": "spline",
+    "polynomial_degree": 2,
+    "colour": "#ff0000",
+    "width": 2,
+    "opacity": 0.8
+  },
+  "sequences": {
+    "first_start": "13:00:00",
+    "items": [
+      {
+        "name": "Handicap",
+        "class_flag": "H",
+        "preparatory_flag": "P",
+        "minutes_after_previous": 5,
+        "events": [
+          { "minutes_before_start": 5, "flag": "class", "action": "up" },
+          { "minutes_before_start": 4, "flag": "preparatory", "action": "up" },
+          { "minutes_before_start": 1, "flag": "preparatory", "action": "down" },
+          { "minutes_before_start": 0, "flag": "class", "action": "down" }
+        ]
+      },
+      {
+        "name": "Lasers",
+        "class_flag": "L",
+        "preparatory_flag": "U",
+        "minutes_after_previous": 5,
+        "events": [
+          { "minutes_before_start": 5, "flag": "class", "action": "up" },
+          { "minutes_before_start": 4, "flag": "preparatory", "action": "up" },
+          { "minutes_before_start": 1, "flag": "preparatory", "action": "down" },
+          { "minutes_before_start": 0, "flag": "class", "action": "down" }
+        ]
+      }
+    ]
+  }
+}
