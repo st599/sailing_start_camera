@@ -5,7 +5,8 @@
     "mac": "00:00:5e:00:53:01",
     "rtsp_port": 554,
     "rtsp_path": "/av_stream/ch0",
-    "capture_latency_ms": 800
+    "capture_latency_ms": 800,
+    "scan_subnets": ["192.0.2.0/24"]
   },
   "stream": {
     "width": 1280,

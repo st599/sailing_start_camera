@@ -39,6 +39,28 @@ URL format: `rtsp://<username>:<password>@<camera-ip>:554/av_stream/<channel>`
 - The unauthenticated web page has the title `sonoff-camera-web` and its server header is
   `onvif-simple`.
 
+## Finding the camera
+
+ONVIF/RTSP must be on. To find the camera, and save its address to the configuration:
+
+```bash
+startcam --scan --config config.json --secrets secrets.json --write
+```
+
+It checks the computer's own subnets, using ONVIF discovery and a scan for the RTSP port.
+Its password only goes to a device identified as the camera: by model, saved MAC address
+or `camera.host`.
+
+If a WiFi extender or router puts the camera on another subnet:
+
+- Add it with `--subnet 192.168.1.0/24`, or `camera.scan_subnets` in the configuration.
+- The computer must be able to reach that subnet. If the extender uses its own private
+  network with NAT, connect the computer to the extender as well, or set the extender to
+  bridge or access point mode.
+- Its MAC address may be hidden or changed. A matching MAC address is preferred, but a
+  single camera of the right model is accepted, with a warning.
+- If the camera can't be identified as this model, set `camera.host`.
+
 ## Stability
 
 | Test | Duration | Longest gap | Gaps over 500 ms | Median gap |

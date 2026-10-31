@@ -24,6 +24,7 @@ Secrets come from a separate file or from environment variables.
 # SYSTEM IMPORTS
 #
 
+import ipaddress
 import json
 import logging
 import os
@@ -51,6 +52,7 @@ from pydantic import (
 logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = 1
+MIN_SCAN_PREFIX = 20
 CLASS_FLAG = "class"
 PREPARATORY_FLAG = "preparatory"
 SECRET_ENVIRONMENT = {
@@ -124,6 +126,16 @@ class CameraConfig(StrictModel):
     rtsp_port: Port = 554
     rtsp_path: str = Field(default="/av_stream/ch0", min_length=1)
     capture_latency_ms: int = Field(default=0, ge=0, le=60000)
+    scan_subnets: list[str] = Field(default_factory=list)
+
+    @field_validator("scan_subnets")
+    @classmethod
+    def _subnets_can_be_scanned(cls, values: list[str]) -> list[str]:
+        for value in values:
+            subnet = ipaddress.IPv4Network(value, strict=False)
+            if subnet.prefixlen < MIN_SCAN_PREFIX:
+                raise ValueError(f"{value} is bigger than /{MIN_SCAN_PREFIX}")
+        return values
 
 
 class StreamConfig(StrictModel):

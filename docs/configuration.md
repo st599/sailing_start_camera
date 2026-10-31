@@ -18,6 +18,7 @@ are errors that name the field at fault.
 | `rtsp_port` | `554` | Camera RTSP port |
 | `rtsp_path` | `/av_stream/ch0` | Camera stream path; `/av_stream/ch1` is the low resolution stream |
 | `capture_latency_ms` | `0` | Camera delay, corrected for in the race clock |
+| `scan_subnets` | `[]` | Extra subnets to scan, such as `192.168.1.0/24`; no bigger than `/20` |
 
 ### `stream`
 
