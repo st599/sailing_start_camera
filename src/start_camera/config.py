@@ -149,13 +149,14 @@ class StreamConfig(StrictModel):
     rtsp_port: Port = 8554
     hls_port: Port = 8888
     webrtc_port: Port = 8889
+    viewer_port: Port = 8080
     youtube_enabled: bool = False
 
     @model_validator(mode="after")
     def _ports_are_different(self) -> Self:
-        ports = (self.rtsp_port, self.hls_port, self.webrtc_port)
+        ports = (self.rtsp_port, self.hls_port, self.webrtc_port, self.viewer_port)
         if len(set(ports)) != len(ports):
-            raise ValueError("rtsp_port, hls_port and webrtc_port must be different")
+            raise ValueError("the stream's ports must all be different")
         return self
 
 

@@ -180,7 +180,7 @@ def test_matching_stream_ports_are_rejected(tmp_path: Path) -> None:
         tmp_path / "c.json",
         {"version": SCHEMA_VERSION, "stream": {"hls_port": 8554}},
     )
-    with pytest.raises(ConfigError, match="stream: .*must be different"):
+    with pytest.raises(ConfigError, match="stream: .*must all be different"):
         load_config(path)
 
 

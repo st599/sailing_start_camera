@@ -349,9 +349,10 @@ def test_server_files_stay_out_of_the_working_directory(
 
 def test_viewer_urls() -> None:
     urls = viewer_urls(StreamConfig(), "10.0.0.2")
-    assert urls["HLS"] == "http://10.0.0.2:8888/start/"
-    assert urls["WebRTC"] == "http://10.0.0.2:8889/start/"
-    assert urls["RTSP"] == "rtsp://10.0.0.2:8554/start"
+    assert urls["TV or browser"] == "http://10.0.0.2:8080/"
+    assert urls["Lowest delay browser"] == "http://10.0.0.2:8080/live"
+    assert urls["TV media player"] == "http://10.0.0.2:8080/stream.m3u8"
+    assert urls["RTSP player"] == "rtsp://10.0.0.2:8554/start"
 
 
 def test_backoff_grows_and_resets() -> None:
@@ -460,6 +461,13 @@ class FakeFrameSource:
         """Do nothing."""
 
 
+class FakeViewer:
+    """Stand in for the viewer server in the command-line test."""
+
+    def stop(self) -> None:
+        """Do nothing."""
+
+
 def test_command_streams_until_terminated(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -471,6 +479,7 @@ def test_command_streams_until_terminated(
     monkeypatch.setattr(cli, "ensure_binary", lambda: Path("/bin/true"))
     monkeypatch.setattr(cli, "FrameSource", FakeFrameSource)
     monkeypatch.setattr(cli, "Publisher", lambda *_: FakeFrameSource(None, None))
+    monkeypatch.setattr(cli, "ViewerServer", lambda stream: FakeViewer())
     timer = threading.Timer(0.2, os.kill, (os.getpid(), signal.SIGTERM))
     timer.start()
     previous = signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGINT)
@@ -481,7 +490,7 @@ def test_command_streams_until_terminated(
         signal.signal(signal.SIGTERM, previous[0])
         signal.signal(signal.SIGINT, previous[1])
     captured = capsys.readouterr()
-    assert ":8888/start/" in captured.err
+    assert ":8080/" in captured.err
     assert "Stopped" in captured.err
     assert captured.out == ""
 
