@@ -54,9 +54,10 @@ used about 26% of one CPU core on a laptop; this hasn't been measured on a Raspb
 
 ## Image
 
-- **Burned-in overlays:** the camera draws its own date and time at the top left and a
-  Sonoff logo at the top right, the same corners as our date and countdown overlays. The
-  web page has a **Watermark** setting that may remove them; this hasn't been tested.
+- **Burned-in overlays:** by default the camera draws its own date and time at the top
+  left and a Sonoff logo at the top right, the same corners as our date and countdown
+  overlays. Turn off the **Watermark** setting on the camera's web page to remove both
+  from `ch0` and `ch1`.
 - **Lens:** strong wide-angle distortion curves straight lines, particularly near the
   frame edges, so a straight start line fit won't suit every camera position.
 
