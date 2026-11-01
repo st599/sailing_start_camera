@@ -92,6 +92,7 @@
   },
   "control": {
     "delay_steps": [1, 5, 10, -1],
-    "journal_path": "race_journal.jsonl"
+    "journal_path": "race_journal.jsonl",
+    "page_port": 8443
   }
 }

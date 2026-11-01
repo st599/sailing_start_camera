@@ -93,4 +93,4 @@ Raspberry Pi 5 running a 64-bit OS.
 ## Firewalls
 
 Viewers need these ports open on the computer: TCP 8080, 8554, 8888 and 8889, and UDP 8189
-for WebRTC.
+for WebRTC. The phone control page needs TCP 8443.

@@ -42,6 +42,7 @@ from start_camera.config import (
     save_config,
 )
 from start_camera.control import RaceControl
+from start_camera.control_page import ControlPage, ControlPageError
 from start_camera.discovery import (
     DiscoveryError,
     discover,
@@ -129,6 +130,8 @@ def _check_config(arguments: argparse.Namespace) -> None:
         logger.warning("There's no camera password in the secrets")
     if config.stream.youtube_enabled and secrets.youtube_stream_key is None:
         logger.warning("YouTube is enabled, but the secrets have no youtube_stream_key")
+    if secrets.control_password is None:
+        logger.warning("There's no control_password, so the phone page will be off")
     logger.info("%d start sequences configured", len(config.sequences.items))
 
 
@@ -170,6 +173,28 @@ def _start_youtube(config: Config, secrets: Secrets) -> YouTubePush | None:
     return push
 
 
+def _start_control_page(
+    config: Config, secrets: Secrets, control: RaceControl
+) -> ControlPage | None:
+    """Start the phone control page if possible. The stream doesn't depend on it."""
+    if secrets.control_password is None:
+        logger.info("No control_password in the secrets, so the phone page is off")
+        return None
+    address = primary_address() or "localhost"
+    try:
+        page = ControlPage(
+            config,
+            control,
+            secrets.control_password.get_secret_value(),
+            address=address,
+        )
+    except (ControlPageError, OSError) as error:
+        logger.error("The phone control page is off: %s", error)
+        return None
+    logger.info("Race officer's phone page: https://%s:%d/", address, page.port)
+    return page
+
+
 def _log_viewer_addresses(config: Config) -> None:
     """Log where viewers can watch."""
     address = primary_address() or "localhost"
@@ -193,11 +218,14 @@ def _run_pipeline(
         Publisher(source, server, config.stream, render=render),
     ):
         push = _start_youtube(config, secrets)
+        page = _start_control_page(config, secrets, control)
         keys.start()
         try:
             stop.wait()
         finally:
             keys.stop()
+            if page is not None:
+                page.stop()
             if push is not None:
                 push.stop()
 
