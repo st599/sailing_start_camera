@@ -31,7 +31,7 @@ from types import FrameType
 #
 from start_camera import __version__
 from start_camera.clock_check import warn_if_clock_unsynchronised
-from start_camera.config import Config, ConfigError, load_config, load_secrets
+from start_camera.config import Config, ConfigError, load_secrets
 from start_camera.logging_setup import configure_logging
 
 #
@@ -64,16 +64,21 @@ def _run_window(arguments: argparse.Namespace) -> int:
 
         from start_camera.gui.main_window import MainWindow
         from start_camera.gui.session import GuiSession
+        from start_camera.gui.settings_model import ConfigDocument
     except ImportError as error:
         logger.error(
             "The GUI needs PySide6. Install it with: pip install .[gui] (%s)", error
         )
         return 1
-    config = load_config(arguments.config) if arguments.config else Config()
+    document = (
+        ConfigDocument.open(arguments.config)
+        if arguments.config
+        else ConfigDocument(Config())
+    )
     secrets = load_secrets(arguments.secrets)
     warn_if_clock_unsynchronised()
     application = QApplication([])
-    window = MainWindow(GuiSession(config, secrets))
+    window = MainWindow(GuiSession(document.config, secrets), document)
 
     def request_quit(number: int, frame: FrameType | None) -> None:
         window.close()

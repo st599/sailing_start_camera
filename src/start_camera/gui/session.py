@@ -89,7 +89,7 @@ class GuiSession:
         self.control = RaceControl(
             config.sequences, Path(config.control.journal_path), clock
         )
-        self._secrets = secrets
+        self.secrets = secrets
         self._source = make_source(config, secrets)
         self._make_streaming = make_streaming
         self._clock = clock
@@ -134,7 +134,7 @@ class GuiSession:
             if self._streaming is not None:
                 return
             streaming = self._make_streaming(
-                self.config, self._secrets, self.control, self._source
+                self.config, self.secrets, self.control, self._source
             )
             streaming.start()
             self._streaming = streaming

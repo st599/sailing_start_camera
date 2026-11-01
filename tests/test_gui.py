@@ -52,6 +52,7 @@ from PySide6.QtWidgets import QMessageBox, QPushButton, QScrollArea  # noqa: E40
 
 from start_camera.gui.main_window import MainWindow, VideoView  # noqa: E402
 from start_camera.gui.session import GuiSession  # noqa: E402
+from start_camera.gui.settings_model import ConfigDocument  # noqa: E402
 from start_camera.race_clock import Phase  # noqa: E402
 
 #
@@ -149,7 +150,23 @@ class Harness:
             clock=lambda: self.now,
         )
         self.source = self.session._source
-        self.window = MainWindow(self.session)
+        self.document = ConfigDocument(config)
+        self.sessions: list[GuiSession] = []
+
+        def make_session(new_config: Config) -> GuiSession:
+            session = GuiSession(
+                new_config,
+                Secrets(),
+                make_source=FakeSource,
+                make_streaming=FakeStreaming,
+                clock=lambda: self.now,
+            )
+            self.sessions.append(session)
+            return session
+
+        self.window = MainWindow(
+            self.session, self.document, make_session=make_session
+        )
         qtbot.addWidget(self.window)
         self.window._confirm = self._confirm
         self.qtbot = qtbot

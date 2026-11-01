@@ -32,5 +32,22 @@ panel doesn't fit, it scrolls.
 Closing the window stops everything, and asks first if the stream is running. Racing carries on
 from the race journal when it's next started, as it does for `startcam`.
 
-Opening configuration files and changing settings in the window are still to come. For now, use
-`--config` as above.
+## Settings and files
+
+The **File** menu opens and saves configuration files, which work unchanged with `startcam`.
+`--config` is optional, and without it the window starts with the defaults. The title shows
+the file's name, with a `*` if there are unsaved changes, and you're offered the chance to save
+them before they'd be lost.
+
+**File, Settings** edits the camera, stream and overlay settings. A problem with a value is
+explained directly beneath it, and nothing changes until they're all valid. New settings are
+used straight away, and aren't in the file until you save them. Settings can't change while
+the stream is running, so stop it first.
+
+**Scan network**, on the Camera tab, lists the devices it finds, likeliest camera first. Select
+one and press **Use selected camera** to fill in its address and MAC address. To test a camera
+during a scan, it uses the camera login from the secrets.
+
+Passwords and the stream key stay in `secrets.json`, and can't be edited here or written to a
+configuration file. Changing `sequences` restarts the race journal, as described in
+[Race control](race_control.md).
