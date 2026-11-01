@@ -122,6 +122,7 @@ Check these against the current Racing Rules of Sailing and your sailing instruc
 |---|---|---|
 | `delay_steps` | `[1, 5, 10, -1]` | Minutes for the one-press delay controls |
 | `journal_path` | `race_journal.jsonl` | The record of race commands. A relative path starts from where `startcam` runs |
+| `page_port` | `8443` | Port of the [phone control page](command_line.md#phone-control-page) |
 
 ## Secrets
 

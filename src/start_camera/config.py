@@ -306,6 +306,7 @@ class ControlConfig(StrictModel):
 
     delay_steps: list[float] = Field(default_factory=lambda: [1.0, 5.0, 10.0, -1.0])
     journal_path: str = Field(default="race_journal.jsonl", min_length=1)
+    page_port: Port = 8443
 
     @field_validator("delay_steps")
     @classmethod
@@ -325,6 +326,16 @@ class Config(StrictModel):
     start_line: StartLineConfig = Field(default_factory=StartLineConfig)
     sequences: SequencesConfig = Field(default_factory=SequencesConfig)
     control: ControlConfig = Field(default_factory=ControlConfig)
+
+    @model_validator(mode="after")
+    def _control_page_has_its_own_port(self) -> Self:
+        stream = self.stream
+        ports = (
+            stream.rtsp_port, stream.hls_port, stream.webrtc_port, stream.viewer_port
+        )  # fmt: skip
+        if self.control.page_port in ports:
+            raise ValueError("control.page_port must differ from the stream's ports")
+        return self
 
 
 class Secrets(StrictModel):
