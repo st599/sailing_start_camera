@@ -1,7 +1,12 @@
 # sailing_start_camera
 A start line camera for sailing races.
 
-## Documentation
+## Getting started
+
+- **Running a race?** Use the [race-day guide](docs/race_day_guide.md).
+- **Setting the system up?** Follow the [setup guide](docs/setup_guide.md).
+
+## Reference
 
 - [Command-line application](docs/command_line.md)
 - [GUI application](docs/gui.md)
