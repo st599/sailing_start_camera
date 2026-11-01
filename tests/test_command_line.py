@@ -38,7 +38,7 @@ import pytest
 #
 # PROJECT IMPORTS
 #
-from start_camera import cli
+from start_camera import cli, pipeline
 from start_camera.config import load_config
 from start_camera.media_server import ensure_binary
 
@@ -393,7 +393,7 @@ def test_viewer_port_in_use_is_reported_and_cleans_up(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(cli, "ensure_binary", lambda: Path("/bin/true"))
+    monkeypatch.setattr(pipeline, "ensure_binary", lambda: Path("/bin/true"))
     previous = [
         signal.getsignal(item)
         for item in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)

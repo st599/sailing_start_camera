@@ -4,6 +4,7 @@ A start line camera for sailing races.
 ## Documentation
 
 - [Command-line application](docs/command_line.md)
+- [GUI application](docs/gui.md)
 - [Streaming and viewing](docs/streaming.md)
 - [Race control](docs/race_control.md)
 - [Flags](docs/flags.md)
@@ -22,8 +23,9 @@ venv/bin/python -m ruff check .
 venv/bin/python -m pytest
 ```
 
-The GUI also needs its optional dependencies:
-`venv/bin/python -m pip install -e .[gui]`.
+The GUI, and its tests, also need:
+`venv/bin/python -m pip install -r requirements-gui.txt`.
+It isn't needed for the command-line application, such as on a Raspberry Pi.
 
 ## Licence
 

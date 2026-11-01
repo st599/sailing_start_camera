@@ -46,8 +46,7 @@ from typing import Any
 #
 from start_camera.config import Config
 from start_camera.control import RaceControl
-from start_camera.overlays.compositor import OverlayContext
-from start_camera.overlays.countdown import CountdownOverlay
+from start_camera.overlays.countdown import RaceDisplay
 from start_camera.race_clock import RaceClockError
 
 #
@@ -362,22 +361,16 @@ class _PageState:
         self.control = control
         self.sessions = sessions
         self._clock = clock
-        self._latency_s = config.camera.capture_latency_ms / 1000
         self._delay_steps = config.control.delay_steps
-        self._countdown = CountdownOverlay(config.overlays.countdown, control)
-        self._width = config.stream.width
-        self._height = config.stream.height
+        self._display = RaceDisplay(config, control)
 
     def describe(self) -> dict[str, Any]:
         """Return the state, showing the same time and flags as the video."""
-        now = self._clock() - self._latency_s
-        race = self.control.state(now)
-        context = OverlayContext(now, self._width, self._height, True)
-        display = self._countdown.state(context)
+        summary = self._display.summary(self._clock())
         return {
-            "phase": race.phase.value,
-            "display": display.text if display else "",
-            "flags": list(race.flags),
+            "phase": summary.phase.value,
+            "display": summary.display,
+            "flags": list(summary.flags),
             "delay_steps": self._delay_steps,
         }
 

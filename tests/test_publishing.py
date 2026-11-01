@@ -41,7 +41,7 @@ import pytest
 #
 # PROJECT IMPORTS
 #
-from start_camera import cli, media_server
+from start_camera import cli, media_server, pipeline
 from start_camera.config import Config, Secrets, StreamConfig, save_config
 from start_camera.ingest import Frame
 from start_camera.media_server import (
@@ -229,6 +229,39 @@ def test_frames_are_sent_at_the_output_rate(tmp_path: Path) -> None:
         time.sleep(1.0)
         rate = (source.calls - start_calls) / (time.monotonic() - started)
     assert FPS * 0.8 <= rate <= FPS * 1.1
+
+
+def _publisher_for_warnings() -> Publisher:
+    """Return a publisher, to test its warnings about falling behind."""
+    return Publisher(FakeSource(), FakeServer(), StreamConfig())
+
+
+def test_an_occasional_late_frame_doesnt_warn(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    publisher = _publisher_for_warnings()
+    for tick in range(20):
+        publisher._warn_behind(1000.0 + tick * 3)
+    assert "keep up" not in caplog.text
+
+
+def test_repeatedly_late_frames_do_warn(caplog: pytest.LogCaptureFixture) -> None:
+    publisher = _publisher_for_warnings()
+    for tick in range(5):
+        publisher._warn_behind(1000.0 + tick)
+    assert caplog.text.count("keep up") == 1
+
+
+def test_the_warning_isnt_repeated_too_often(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    publisher = _publisher_for_warnings()
+    for tick in range(100):
+        publisher._warn_behind(1000.0 + tick * 0.1)
+    assert caplog.text.count("keep up") == 1
+    for tick in range(5):
+        publisher._warn_behind(1040.0 + tick)
+    assert caplog.text.count("keep up") == 2
 
 
 def test_render_decides_what_is_encoded(tmp_path: Path) -> None:
@@ -461,6 +494,16 @@ class FakeFrameSource:
         """Do nothing."""
 
 
+class FakeViewerLike:
+    """Stand in for the publisher in the command-line test."""
+
+    def start(self) -> None:
+        """Do nothing."""
+
+    def stop(self) -> None:
+        """Do nothing."""
+
+
 class FakeViewer:
     """Stand in for the viewer server in the command-line test."""
 
@@ -488,12 +531,10 @@ def test_command_streams_until_terminated(
     path = tmp_path / "config.json"
     save_config(Config(), path)
     monkeypatch.setattr("sys.argv", ["startcam", "--config", str(path)])
-    monkeypatch.setattr(cli, "ensure_binary", lambda: Path("/bin/true"))
+    monkeypatch.setattr(pipeline, "ensure_binary", lambda: Path("/bin/true"))
     monkeypatch.setattr(cli, "FrameSource", FakeFrameSource)
-    monkeypatch.setattr(
-        cli, "Publisher", lambda *_, **__: FakeFrameSource(None, None)
-    )
-    monkeypatch.setattr(cli, "ViewerServer", lambda stream: FakeViewer())
+    monkeypatch.setattr(pipeline, "Publisher", lambda *_, **__: FakeViewerLike())
+    monkeypatch.setattr(pipeline, "ViewerServer", lambda stream: FakeViewer())
     monkeypatch.setattr(cli, "TerminalKeys", lambda *_: FakeKeys())
     timer = threading.Timer(0.2, os.kill, (os.getpid(), signal.SIGTERM))
     timer.start()

@@ -23,7 +23,6 @@
 import argparse
 import logging
 import signal
-import socket
 import threading
 from pathlib import Path
 from types import FrameType
@@ -42,27 +41,17 @@ from start_camera.config import (
     save_config,
 )
 from start_camera.control import RaceControl
-from start_camera.control_page import ControlPage, ControlPageError
 from start_camera.discovery import (
     DiscoveryError,
     discover,
     log_candidates,
-    primary_address,
     select_camera,
 )
 from start_camera.ingest import FrameSource
 from start_camera.logging_setup import configure_logging
-from start_camera.media_server import (
-    MediaServer,
-    MediaServerError,
-    ensure_binary,
-    viewer_urls,
-)
-from start_camera.output import Publisher
-from start_camera.overlays.factory import build_compositor
+from start_camera.media_server import MediaServerError
+from start_camera.pipeline import Streaming
 from start_camera.terminal_keys import KeyHandler, TerminalKeys
-from start_camera.viewer import ViewerServer
-from start_camera.youtube import YouTubePush
 
 #
 #  GLOBAL VARIABLES
@@ -160,74 +149,21 @@ def _stop_on_signals() -> threading.Event:
     return stop
 
 
-def _start_youtube(config: Config, secrets: Secrets) -> YouTubePush | None:
-    """Start the YouTube push if it's enabled and possible."""
-    if not config.stream.youtube_enabled:
-        return None
-    if secrets.youtube_stream_key is None:
-        logger.error("YouTube is enabled, but the secrets have no youtube_stream_key")
-        return None
-    push = YouTubePush(config.stream, secrets.youtube_stream_key.get_secret_value())
-    push.start()
-    logger.info("YouTube push enabled")
-    return push
-
-
-def _start_control_page(
-    config: Config, secrets: Secrets, control: RaceControl
-) -> ControlPage | None:
-    """Start the phone control page if possible. The stream doesn't depend on it."""
-    if secrets.control_password is None:
-        logger.info("No control_password in the secrets, so the phone page is off")
-        return None
-    address = primary_address() or "localhost"
-    try:
-        page = ControlPage(
-            config,
-            control,
-            secrets.control_password.get_secret_value(),
-            address=address,
-        )
-    except (ControlPageError, OSError) as error:
-        logger.error("The phone control page is off: %s", error)
-        return None
-    logger.info("Race officer's phone page: https://%s:%d/", address, page.port)
-    return page
-
-
-def _log_viewer_addresses(config: Config) -> None:
-    """Log where viewers can watch."""
-    address = primary_address() or "localhost"
-    for name, url in viewer_urls(config.stream, address).items():
-        logger.info("%s: %s", name, url)
-    logger.info(
-        "If the address changes, http://%s.local:%d/ may still work",
-        socket.gethostname(), config.stream.viewer_port,
-    )  # fmt: skip
-
-
 def _run_pipeline(
-    config: Config, secrets: Secrets, server: MediaServer, stop: threading.Event
+    config: Config, secrets: Secrets, stop: threading.Event
 ) -> None:
     """Run the stream and its controls until asked to stop."""
     control = RaceControl(config.sequences, Path(config.control.journal_path))
-    render = build_compositor(config, race_clock=control).render
     keys = TerminalKeys(KeyHandler(control, stop.set), STDIN_FILE_DESCRIPTOR)
-    with (
-        FrameSource(config, secrets) as source,
-        Publisher(source, server, config.stream, render=render),
-    ):
-        push = _start_youtube(config, secrets)
-        page = _start_control_page(config, secrets, control)
-        keys.start()
+    with FrameSource(config, secrets) as source:
+        streaming = Streaming(config, secrets, control, source)
         try:
+            streaming.start()
+            keys.start()
             stop.wait()
         finally:
             keys.stop()
-            if page is not None:
-                page.stop()
-            if push is not None:
-                push.stop()
+            streaming.stop()
 
 
 def _stream(arguments: argparse.Namespace) -> None:
@@ -236,16 +172,7 @@ def _stream(arguments: argparse.Namespace) -> None:
     secrets = load_secrets(arguments.secrets)
     stop = _stop_on_signals()
     warn_if_clock_unsynchronised()
-    server = MediaServer(config.stream, ensure_binary())
-    try:
-        viewer = ViewerServer(config.stream)
-        try:
-            _log_viewer_addresses(config)
-            _run_pipeline(config, secrets, server, stop)
-        finally:
-            viewer.stop()
-    finally:
-        server.stop()
+    _run_pipeline(config, secrets, stop)
     logger.info("Stopped")
 
 

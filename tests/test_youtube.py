@@ -37,7 +37,7 @@ import pytest
 #
 # PROJECT IMPORTS
 #
-from start_camera import cli
+from start_camera import pipeline
 from start_camera.config import Config, ConfigError, Secrets, StreamConfig, load_config
 from start_camera.ingest import Frame
 from start_camera.media_server import MediaServer, ensure_binary, publish_url
@@ -206,14 +206,14 @@ def test_stop_ends_the_process(tmp_path: Path) -> None:
 
 
 def test_nothing_starts_when_disabled() -> None:
-    assert cli._start_youtube(Config(), Secrets()) is None
+    assert pipeline.start_youtube(Config(), Secrets()) is None
 
 
 def test_missing_key_is_reported_without_stopping(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     config = Config(stream=StreamConfig(youtube_enabled=True))
-    assert cli._start_youtube(config, Secrets()) is None
+    assert pipeline.start_youtube(config, Secrets()) is None
     assert "no youtube_stream_key" in caplog.text
 
 
@@ -227,9 +227,9 @@ def test_enabled_push_starts(monkeypatch: pytest.MonkeyPatch) -> None:
         def start(self) -> None:
             started.append("started")
 
-    monkeypatch.setattr(cli, "YouTubePush", FakePush)
+    monkeypatch.setattr(pipeline, "YouTubePush", FakePush)
     config = Config(stream=StreamConfig(youtube_enabled=True))
-    assert cli._start_youtube(config, Secrets(youtube_stream_key=KEY)) is not None
+    assert pipeline.start_youtube(config, Secrets(youtube_stream_key=KEY)) is not None
     assert started == [KEY, "started"]
 
 
