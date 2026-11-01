@@ -59,6 +59,27 @@ The preview is drawn by the same code as the stream. The line stops at its first
 points. If the camera moves, the line has to be placed again. Each configuration file holds one
 line, so use a file for each starting box.
 
+**File, Start sequences** edits the day's starts:
+
+- **Templates** replace the sequences with a saved set. Tamesis Club's Summer Series templates
+  are built in, with the Blue, White and combined days, morning and afternoon, from the 2026
+  Series Notice. **Save as template** keeps the current sequences for another day, in
+  `~/.config/start_camera/race_templates`. A club can add its own JSON file of templates and
+  classes there, in the format of `src/start_camera/race_templates_data`.
+- **First start** is either a scheduled time or, when it's not ticked, whenever the race officer
+  starts it.
+- **Starts** can be added, with their flags from the class list, removed and reordered, up to 10.
+- **A combined start** has its flags joined by `+`, such as `8+Solo`, and each is shown on the
+  video.
+- **Events** give the flag signals in minutes before the start. **Standard signals** restores
+  Rule 26's, and the Thursday N18 signals (SI 12.4) are a template.
+- **What flies when** shows the resulting times. Impossible timings, such as a flag coming down
+  before it goes up, are explained in red, and have to be fixed before pressing OK. Overlaps are
+  allowed, and are pointed out as a warning.
+
+Check the templates against the current notices. **Changing the sequences starts the race journal
+afresh**, so do this before racing rather than during it.
+
 **Scan network**, on the Camera tab, lists the devices it finds, likeliest camera first. Select
 one and press **Use selected camera** to fill in its address and MAC address. To test a camera
 during a scan, it uses the camera login from the secrets.

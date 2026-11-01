@@ -268,7 +268,9 @@ def default_flag_events() -> list[FlagEvent]:
 class SequenceConfig(StrictModel):
     """One class's start sequence.
 
-    An event's flag is "class", "preparatory" or the name of any other flag.
+    An event's flag is "class", "preparatory" or the name of any other flag. A combined
+    start has several class flags joined by "+", such as "8+Solo", and flag_labels can
+    name the class of each.
     """
 
     name: str = Field(min_length=1)
@@ -276,6 +278,7 @@ class SequenceConfig(StrictModel):
     preparatory_flag: PreparatoryFlag = PreparatoryFlag.P
     minutes_after_previous: float = Field(default=5, gt=0)
     events: list[FlagEvent] = Field(default_factory=default_flag_events, min_length=1)
+    flag_labels: dict[str, str] = Field(default_factory=dict)
 
 
 class SequencesConfig(StrictModel):

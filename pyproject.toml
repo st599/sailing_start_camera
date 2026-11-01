@@ -29,6 +29,9 @@ version = { attr = "start_camera.__version__" }
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+start_camera = ["race_templates_data/*.json"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 

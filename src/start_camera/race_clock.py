@@ -46,6 +46,7 @@ from start_camera.config import (
 #  GLOBAL VARIABLES
 #
 
+COMBINED_FLAG_SEPARATOR = "+"
 POSTPONEMENT_FLAG = "AP"
 GENERAL_RECALL_FLAG = "First Substitute"
 INDIVIDUAL_RECALL_FLAG = "X"
@@ -136,7 +137,8 @@ def _sequence_flags(entry: _Entry, now: float) -> list[str]:
     for event in events:
         if now >= entry.start - event.minutes_before_start * MINUTE_S:
             name = _flag_name(entry.sequence, event.flag)
-            flying[name] = event.action is FlagAction.UP
+            for part in name.split(COMBINED_FLAG_SEPARATOR):
+                flying[part] = event.action is FlagAction.UP
     return [name for name, up in flying.items() if up]
 
 

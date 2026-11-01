@@ -1,0 +1,18 @@
+{
+  "club": "Standard",
+  "classes": [],
+  "templates": [
+    {
+      "name": "Rule 26, one class",
+      "sequences": {
+        "first_start": null,
+        "items": [
+          {
+            "name": "Class",
+            "class_flag": "A"
+          }
+        ]
+      }
+    }
+  ]
+}
