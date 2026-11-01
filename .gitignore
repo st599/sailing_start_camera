@@ -227,3 +227,4 @@ CLAUDE.md
 config.json
 secrets.json
 custom_flags/
+race_journal.jsonl

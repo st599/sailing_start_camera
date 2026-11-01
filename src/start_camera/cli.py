@@ -41,6 +41,7 @@ from start_camera.config import (
     load_secrets,
     save_config,
 )
+from start_camera.control import RaceControl
 from start_camera.discovery import (
     DiscoveryError,
     discover,
@@ -147,13 +148,13 @@ def _stream(arguments: argparse.Namespace) -> None:
         "If the address changes, http://%s.local:%d/ may still work",
         socket.gethostname(), config.stream.viewer_port,
     )  # fmt: skip
+    control = RaceControl(config.sequences, Path(config.control.journal_path))
+    render = build_compositor(config, race_clock=control).render
     push = None
     try:
         with (
             FrameSource(config, secrets) as source,
-            Publisher(
-                source, server, config.stream, render=build_compositor(config).render
-            ),
+            Publisher(source, server, config.stream, render=render),
         ):
             push = _start_youtube(config, secrets)
             _wait_for_shutdown()
