@@ -235,10 +235,11 @@ class StartLineConfig(StrictModel):
         needed = 2
         if self.fit is LineFit.POLYNOMIAL:
             needed = self.polynomial_degree + 1
-        if self.enabled and len(self.points) < needed:
+        different = len({(point.x, point.y) for point in self.points})
+        if self.enabled and different < needed:
             raise ValueError(
                 f"points: an enabled {self.fit.value} line needs at least "
-                f"{needed} points, got {len(self.points)}"
+                f"{needed} different points, got {different}"
             )
         return self
 

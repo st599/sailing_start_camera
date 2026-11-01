@@ -71,7 +71,17 @@ All the stream's ports must be different.
 | `width` | `2` | Line width in pixels |
 | `opacity` | `0.8` | From 0 (invisible) to 1 (solid) |
 
-An enabled line needs at least two points, or one more than the degree for `polynomial`.
+An enabled line needs at least two different points, or one more than the degree for
+`polynomial`. Give the points in order along the line. The line runs from the first point to
+the last, and doesn't extend beyond them.
+
+The fit types are:
+
+- `straight`: the straight line closest to all the points.
+- `polynomial`: a smooth curve closest to the points. It needn't touch them, which evens out
+  small errors in where they were placed.
+- `spline`: a smooth curve through every point exactly. Use more points to follow a lens's
+  distortion, as the camera's wide-angle lens curves straight lines near the frame's edges.
 
 ### `sequences`
 

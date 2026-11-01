@@ -46,6 +46,7 @@ from start_camera.ingest import Frame
 logger = logging.getLogger(__name__)
 
 DEFAULT_MARGIN = 16
+SPARSE_COVERAGE = 0.25
 
 #
 # FUNCTIONS
@@ -118,6 +119,7 @@ class _PreparedLayer:
     columns: slice
     premultiplied: NDArray[np.uint16]
     inverse_alpha: NDArray[np.uint16]
+    pixels: tuple[NDArray[np.intp], NDArray[np.intp]] | None
 
 
 def _prepare(layer: Layer, width: int, height: int) -> _PreparedLayer | None:
@@ -132,12 +134,29 @@ def _prepare(layer: Layer, width: int, height: int) -> _PreparedLayer | None:
         top - layer.y : bottom - layer.y, left - layer.x : right - layer.x
     ].astype(np.uint16)
     alpha = clipped[:, :, 3:]
+    premultiplied = clipped[:, :, :3] * alpha
+    inverse_alpha = 255 - alpha
+    visible = np.nonzero(alpha[:, :, 0])
+    pixels = None
+    if visible[0].size < alpha.size * SPARSE_COVERAGE:
+        # A thin diagonal line covers few pixels of a large area, so only touch those.
+        premultiplied = premultiplied[visible]
+        inverse_alpha = inverse_alpha[visible]
+        pixels = (visible[0] + top, visible[1] + left)
     return _PreparedLayer(
-        slice(top, bottom),
-        slice(left, right),
-        clipped[:, :, :3] * alpha,
-        255 - alpha,
+        slice(top, bottom), slice(left, right), premultiplied, inverse_alpha, pixels
     )
+
+
+def _blend(image: NDArray[np.uint8], layer: _PreparedLayer) -> None:
+    """Blend a prepared layer on to an image."""
+    target = layer.pixels or (layer.rows, layer.columns)
+    region = image[target]
+    # (x + 255) >> 8 divides by 255 exactly for these values, without a slow integer
+    # division.
+    image[target] = (
+        (layer.premultiplied + region * layer.inverse_alpha + 255) >> 8
+    ).astype(np.uint8)
 
 
 class _CachedOverlay:
@@ -208,10 +227,5 @@ class Compositor:
             return frame.image
         image = frame.image.copy()
         for layer in prepared:
-            region = image[layer.rows, layer.columns]
-            # (x + 255) >> 8 divides by 255 exactly for these values, without a slow
-            # integer division.
-            region[:] = (
-                (layer.premultiplied + region * layer.inverse_alpha + 255) >> 8
-            ).astype(np.uint8)
+            _blend(image, layer)
         return image
