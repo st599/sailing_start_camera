@@ -185,6 +185,8 @@ class Publisher:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._last_behind_warning = 0.0
+        self.frames_sent = 0
+        self.late_ticks = 0
 
     def __enter__(self) -> Self:
         """Start publishing."""
@@ -222,6 +224,7 @@ class Publisher:
                 next_tick += period
                 now = time.monotonic()
                 if next_tick < now - period:
+                    self.late_ticks += 1
                     self._warn_behind(now)
                     next_tick = now
                 self._stop.wait(max(0.0, next_tick - now))
@@ -249,6 +252,7 @@ class Publisher:
             return
         try:
             self._encoder.write(self._render(self._source.latest()))
+            self.frames_sent += 1
         except EncoderError as error:
             self._encoder_failed(str(error))
 
