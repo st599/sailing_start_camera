@@ -283,7 +283,7 @@ class LineEditorDialog(QDialog):
         )
         buttons.accepted.connect(self.accept_line)
         buttons.rejected.connect(self.reject)
-        # The controls go to the side, as a larger picture makes for more accurate clicks.
+        # The controls go to the side, as a larger picture makes clicks more accurate.
         side = QVBoxLayout()
         side.addLayout(self._build_settings(config))
         side.addLayout(self._build_tools())
