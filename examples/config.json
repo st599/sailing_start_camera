@@ -33,7 +33,9 @@
       "enabled": true,
       "position": "top_right",
       "scale": 1.5,
-      "colour": "#ffff00"
+      "colour": "#ffff00",
+      "count_up_colour": "#80ff80",
+      "count_up_minutes": 90
     },
     "flags": {
       "enabled": true,

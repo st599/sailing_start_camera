@@ -54,6 +54,8 @@ All the stream's ports must be different.
 | Overlay | Field | Default | Meaning |
 |---|---|---|---|
 | `datetime`, `countdown` | `colour` | `#ffffff` | Text colour as `#rrggbb` |
+| `countdown` | `count_up_colour` | `#80ff80` | Text colour when counting up, as `#rrggbb` |
+| `countdown` | `count_up_minutes` | `90` | How long to count up after the last start |
 | `datetime` | `format` | `%H:%M:%S %d/%m/%y` | [strftime](https://docs.python.org/3/library/datetime.html#format-codes) format |
 | `flags` | `show_labels` | `true` | Show each flag's name |
 

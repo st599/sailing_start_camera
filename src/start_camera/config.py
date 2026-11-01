@@ -191,6 +191,8 @@ class CountdownOverlayConfig(TextOverlayConfig):
     """The countdown and count-up overlay."""
 
     position: Corner = Corner.TOP_RIGHT
+    count_up_colour: Colour = "#80ff80"
+    count_up_minutes: float = Field(default=90, ge=0)
 
 
 class FlagsOverlayConfig(StrictModel):
