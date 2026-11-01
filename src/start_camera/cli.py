@@ -35,6 +35,7 @@ from start_camera import __version__
 from start_camera.config import (
     Config,
     ConfigError,
+    Secrets,
     load_config,
     load_secrets,
     save_config,
@@ -56,6 +57,7 @@ from start_camera.media_server import (
 )
 from start_camera.output import Publisher
 from start_camera.viewer import ViewerServer
+from start_camera.youtube import YouTubePush
 
 #
 #  GLOBAL VARIABLES
@@ -116,6 +118,19 @@ def _wait_for_shutdown() -> None:
     stop.wait()
 
 
+def _start_youtube(config: Config, secrets: Secrets) -> YouTubePush | None:
+    """Start the YouTube push if it's enabled and possible."""
+    if not config.stream.youtube_enabled:
+        return None
+    if secrets.youtube_stream_key is None:
+        logger.error("YouTube is enabled, but the secrets have no youtube_stream_key")
+        return None
+    push = YouTubePush(config.stream, secrets.youtube_stream_key.get_secret_value())
+    push.start()
+    logger.info("YouTube push enabled")
+    return push
+
+
 def _stream(arguments: argparse.Namespace) -> None:
     """Publish the camera with the configuration until asked to stop."""
     config = load_config(arguments.config)
@@ -129,13 +144,17 @@ def _stream(arguments: argparse.Namespace) -> None:
         "If the address changes, http://%s.local:%d/ may still work",
         socket.gethostname(), config.stream.viewer_port,
     )  # fmt: skip
+    push = None
     try:
         with (
             FrameSource(config, secrets) as source,
             Publisher(source, server, config.stream),
         ):
+            push = _start_youtube(config, secrets)
             _wait_for_shutdown()
     finally:
+        if push is not None:
+            push.stop()
         viewer.stop()
         server.stop()
     logger.info("Stopped")

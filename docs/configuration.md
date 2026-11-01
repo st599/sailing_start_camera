@@ -36,6 +36,7 @@ All the stream's ports must be different.
 | Field | Default | Meaning |
 |---|---|---|
 | `youtube_enabled` | `false` | Push the stream to YouTube Live |
+| `youtube_ingest_url` | `rtmps://a.rtmp.youtube.com/live2` | Address to push to, from YouTube Studio |
 
 ### `overlays`
 

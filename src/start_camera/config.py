@@ -151,6 +151,9 @@ class StreamConfig(StrictModel):
     webrtc_port: Port = 8889
     viewer_port: Port = 8080
     youtube_enabled: bool = False
+    youtube_ingest_url: str = Field(
+        default="rtmps://a.rtmp.youtube.com/live2", pattern=r"^rtmps?://\S+$"
+    )
 
     @model_validator(mode="after")
     def _ports_are_different(self) -> Self:
