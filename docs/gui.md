@@ -44,6 +44,21 @@ explained directly beneath it, and nothing changes until they're all valid. New 
 used straight away, and aren't in the file until you save them. Settings can't change while
 the stream is running, so stop it first.
 
+**File, Start line** places the start line on a frozen picture from the camera:
+
+1. Click the two ends of the line. Line them up with what marks the line, such as a boat or
+   marker on the transit, or the Inner Distance Mark. **New picture** freezes another moment.
+2. Click any points between them. Points can be clicked in any order, and each goes where it
+   adds the least length to the line. Add more where the lens curves the line, usually near
+   the edges of the picture.
+3. Drag a point to move it. Right-click a point, or select it and press Delete, to remove it.
+4. Scroll to zoom in, and drag with the middle button to move around.
+5. Choose the fit. `spline` goes through every point, and `polynomial` evens out small errors.
+
+The preview is drawn by the same code as the stream. The line stops at its first and last
+points. If the camera moves, the line has to be placed again. Each configuration file holds one
+line, so use a file for each starting box.
+
 **Scan network**, on the Camera tab, lists the devices it finds, likeliest camera first. Select
 one and press **Use selected camera** to fill in its address and MAC address. To test a camera
 during a scan, it uses the camera login from the secrets.

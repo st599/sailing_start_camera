@@ -56,6 +56,7 @@ from PySide6.QtWidgets import (
 # PROJECT IMPORTS
 #
 from start_camera.config import Config, ConfigError
+from start_camera.gui.line_editor import LineEditorDialog
 from start_camera.gui.session import GuiSession
 from start_camera.gui.settings_dialog import SettingsDialog
 from start_camera.gui.settings_model import ConfigDocument
@@ -317,6 +318,7 @@ class MainWindow(QMainWindow):
             ("&Save", QKeySequence.StandardKey.Save, self._save_file),
             ("Save &As...", QKeySequence.StandardKey.SaveAs, self._save_file_as),
             ("Se&ttings...", None, self._open_settings),
+            ("Start &line...", None, self._open_line_editor),
         )
         menu = self.menuBar().addMenu("&File")
         for text, shortcut, action in items:
@@ -347,6 +349,26 @@ class MainWindow(QMainWindow):
         if self._document.update(dialog.result_config):
             self._use_config(self._document.config)
         self._show_title()
+
+    def _open_line_editor(self) -> None:
+        """Edit the start line, using the new one straight away."""
+        if not self._config_can_change():
+            return
+        dialog = self._line_editor()
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        config = self._document.config.model_copy(
+            update={"start_line": dialog.result_config}
+        )
+        if self._document.update(config):
+            self._use_config(config)
+        self._show_title()
+
+    def _line_editor(self) -> LineEditorDialog:
+        """Return the start line editor."""
+        return LineEditorDialog(
+            self._document.config.start_line, self._session.camera_frame, self
+        )
 
     def _settings_dialog(self) -> SettingsDialog:
         """Return the settings form."""
