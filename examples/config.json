@@ -27,7 +27,7 @@
       "position": "top_left",
       "scale": 1.0,
       "colour": "#ffffff",
-      "format": "%Y-%m-%d %H:%M:%S"
+      "format": "%H:%M:%S %d/%m/%y"
     },
     "countdown": {
       "enabled": true,

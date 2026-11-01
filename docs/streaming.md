@@ -62,6 +62,16 @@ Delay across the network and from the camera comes on top, as does YouTube's own
 public viewers. HLS delay varies between sessions and players, and a TV may buffer more.
 Every viewer's burned-in clock stays in step with their video.
 
+## Date and time
+
+The video shows the local date and time in the top left corner, as `HH:MM:SS dd/mm/yy`. The
+format, position and size can be changed in the `overlays.datetime` section of the
+configuration. It's the computer's clock, set back by `camera.capture_latency_ms`, so it
+shows when the picture was captured.
+
+Turn off the camera's **Watermark** setting, as otherwise it adds its own clock and logo.
+If the computer's clock isn't synchronised using NTP, a warning is logged at startup.
+
 ## How it behaves
 
 - **Frame rate:** the output runs at `stream.fps`, whatever the camera delivers.

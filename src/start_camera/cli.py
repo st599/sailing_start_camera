@@ -32,6 +32,7 @@ from types import FrameType
 # PROJECT IMPORTS
 #
 from start_camera import __version__
+from start_camera.clock_check import warn_if_clock_unsynchronised
 from start_camera.config import (
     Config,
     ConfigError,
@@ -56,6 +57,7 @@ from start_camera.media_server import (
     viewer_urls,
 )
 from start_camera.output import Publisher
+from start_camera.overlays.factory import build_compositor
 from start_camera.viewer import ViewerServer
 from start_camera.youtube import YouTubePush
 
@@ -135,6 +137,7 @@ def _stream(arguments: argparse.Namespace) -> None:
     """Publish the camera with the configuration until asked to stop."""
     config = load_config(arguments.config)
     secrets = load_secrets(arguments.secrets)
+    warn_if_clock_unsynchronised()
     server = MediaServer(config.stream, ensure_binary())
     viewer = ViewerServer(config.stream)
     address = primary_address() or "localhost"
@@ -148,7 +151,9 @@ def _stream(arguments: argparse.Namespace) -> None:
     try:
         with (
             FrameSource(config, secrets) as source,
-            Publisher(source, server, config.stream),
+            Publisher(
+                source, server, config.stream, render=build_compositor(config).render
+            ),
         ):
             push = _start_youtube(config, secrets)
             _wait_for_shutdown()

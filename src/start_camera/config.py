@@ -176,7 +176,7 @@ class DateTimeOverlayConfig(TextOverlayConfig):
     """The date and time overlay."""
 
     position: Corner = Corner.TOP_LEFT
-    format: str = Field(default="%Y-%m-%d %H:%M:%S", min_length=1)
+    format: str = Field(default="%H:%M:%S %d/%m/%y", min_length=1)
 
 
 class CountdownOverlayConfig(TextOverlayConfig):
