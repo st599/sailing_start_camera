@@ -100,15 +100,22 @@ class Backoff:
         self.retry_at = now + self.delay_s
 
 
-def log_output(lines: Iterable[bytes], name: str) -> None:
+def log_output(lines: Iterable[bytes], name: str, redact: Iterable[str] = ()) -> None:
     """Log a process's output in the background.
 
-    Only use this for processes whose output can't contain secrets.
+    Args:
+        lines: The process's output.
+        name: What to call the process in the logs.
+        redact: Secrets that must not reach the logs.
     """
+    secrets = [secret for secret in redact if secret]
 
     def run() -> None:
         for line in lines:
-            logger.warning("%s: %s", name, line.decode(errors="replace").rstrip())
+            text = line.decode(errors="replace").rstrip()
+            for secret in secrets:
+                text = text.replace(secret, "***")
+            logger.warning("%s: %s", name, text)
 
     threading.Thread(target=run, daemon=True, name=f"{name}-log").start()
 
