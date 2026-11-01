@@ -52,6 +52,7 @@ from pydantic import (
 logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = 1
+MAX_STARTS = 10
 MIN_SCAN_PREFIX = 20
 CLASS_FLAG = "class"
 PREPARATORY_FLAG = "preparatory"
@@ -107,6 +108,13 @@ class PreparatoryFlag(StrEnum):
     Z_AND_I = "Z+I"
     U = "U"
     BLACK = "black"
+
+
+class GeneralRecallMode(StrEnum):
+    """What happens to the other classes after a general recall."""
+
+    DELAY_FOLLOWING = "delay_following"
+    END_OF_QUEUE = "end_of_queue"
 
 
 class FlagAction(StrEnum):
@@ -270,11 +278,14 @@ class SequencesConfig(StrictModel):
     """The day's start sequences, in order.
 
     A first_start of None means the race officer starts the first sequence by hand.
-    It is a local time of day.
+    It is a local time of day. general_recall says whether later starts wait for the
+    recalled class, or the recalled class goes to the end of the queue.
     """
 
     first_start: time | None = None
-    items: list[SequenceConfig] = Field(default_factory=list)
+    general_recall: GeneralRecallMode = GeneralRecallMode.DELAY_FOLLOWING
+    recall_flag_minutes: float = Field(default=1, gt=0)
+    items: list[SequenceConfig] = Field(default_factory=list, max_length=MAX_STARTS)
 
     @field_validator("first_start")
     @classmethod
