@@ -37,16 +37,21 @@ from start_camera.gui import app
 
 
 @pytest.mark.parametrize(
-    ("main", "name"), [(cli.main, "startcam"), (app.main, "startcam-gui")]
+    ("main", "arguments", "name"),
+    [
+        (cli.main, ["--check-config", "--config", "examples/config.json"], "startcam"),
+        (app.main, [], "startcam-gui"),
+    ],
 )
 def test_main_logs_start_without_using_stdout(
     main: Callable[[], int],
+    arguments: list[str],
     name: str,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Each application logs that it started, exits cleanly and leaves stdout alone."""
-    monkeypatch.setattr("sys.argv", [name])
+    monkeypatch.setattr("sys.argv", [name, *arguments])
     result = main()
     captured = capsys.readouterr()
     assert result == 0

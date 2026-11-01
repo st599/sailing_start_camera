@@ -468,6 +468,17 @@ class FakeViewer:
         """Do nothing."""
 
 
+class FakeKeys:
+    """Stand in for the terminal keys in the command-line test."""
+
+    def start(self) -> bool:
+        """Do nothing."""
+        return False
+
+    def stop(self) -> None:
+        """Do nothing."""
+
+
 def test_command_streams_until_terminated(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -483,6 +494,7 @@ def test_command_streams_until_terminated(
         cli, "Publisher", lambda *_, **__: FakeFrameSource(None, None)
     )
     monkeypatch.setattr(cli, "ViewerServer", lambda stream: FakeViewer())
+    monkeypatch.setattr(cli, "TerminalKeys", lambda *_: FakeKeys())
     timer = threading.Timer(0.2, os.kill, (os.getpid(), signal.SIGTERM))
     timer.start()
     previous = signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGINT)

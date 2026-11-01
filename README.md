@@ -1,6 +1,17 @@
 # sailing_start_camera
 A start line camera for sailing races.
 
+## Documentation
+
+- [Command-line application](docs/command_line.md)
+- [Streaming and viewing](docs/streaming.md)
+- [Race control](docs/race_control.md)
+- [Flags](docs/flags.md)
+- [Configuration](docs/configuration.md)
+- [YouTube Live](docs/youtube.md)
+- [The camera](docs/camera.md)
+- [Performance](docs/performance.md)
+
 ## Development setup
 
 ```bash

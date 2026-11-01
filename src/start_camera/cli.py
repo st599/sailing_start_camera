@@ -59,6 +59,7 @@ from start_camera.media_server import (
 )
 from start_camera.output import Publisher
 from start_camera.overlays.factory import build_compositor
+from start_camera.terminal_keys import KeyHandler, TerminalKeys
 from start_camera.viewer import ViewerServer
 from start_camera.youtube import YouTubePush
 
@@ -67,6 +68,10 @@ from start_camera.youtube import YouTubePush
 #
 
 logger = logging.getLogger(__name__)
+
+LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
+# A service may have no sys.stdin at all, so this avoids relying on it.
+STDIN_FILE_DESCRIPTOR = 0
 
 #
 # FUNCTIONS
@@ -80,6 +85,11 @@ def _parse_arguments() -> argparse.Namespace:
     parser.add_argument("--secrets", type=Path, help="secrets file")
     parser.add_argument("--scan", action="store_true", help="find the camera and exit")
     parser.add_argument(
+        "--check-config",
+        action="store_true",
+        help="check the configuration and secrets files, and exit",
+    )
+    parser.add_argument(
         "--subnet",
         action="append",
         default=[],
@@ -90,10 +100,36 @@ def _parse_arguments() -> argparse.Namespace:
         action="store_true",
         help="save the camera found by --scan to the configuration file",
     )
+    parser.add_argument(
+        "--log-level",
+        choices=LOG_LEVELS,
+        default="INFO",
+        type=str.upper,
+        help="the least important messages to show",
+    )
+    parser.add_argument("--log-file", type=Path, help="also write the log to this file")
     arguments = parser.parse_args()
     if arguments.write and not (arguments.scan and arguments.config):
         parser.error("--write needs --scan and --config")
+    if arguments.check_config and not arguments.config:
+        parser.error("--check-config needs --config")
+    if not (arguments.scan or arguments.config):
+        parser.error("use --config to stream, or --scan to find the camera")
     return arguments
+
+
+def _check_config(arguments: argparse.Namespace) -> None:
+    """Check the configuration files, and report anything that will cause a problem."""
+    config = load_config(arguments.config)
+    secrets = load_secrets(arguments.secrets)
+    logger.info("%s is valid", arguments.config)
+    if config.camera.host is None:
+        logger.warning("camera.host isn't set, so the camera will be found by scanning")
+    if secrets.camera_password is None:
+        logger.warning("There's no camera password in the secrets")
+    if config.stream.youtube_enabled and secrets.youtube_stream_key is None:
+        logger.warning("YouTube is enabled, but the secrets have no youtube_stream_key")
+    logger.info("%d start sequences configured", len(config.sequences.items))
 
 
 def _scan(arguments: argparse.Namespace) -> None:
@@ -109,16 +145,16 @@ def _scan(arguments: argparse.Namespace) -> None:
         save_config(config, arguments.config)
 
 
-def _wait_for_shutdown() -> None:
-    """Wait until the application is asked to stop."""
+def _stop_on_signals() -> threading.Event:
+    """Return an event that's set when the application is asked to stop."""
     stop = threading.Event()
 
     def request_stop(number: int, frame: FrameType | None) -> None:
         stop.set()
 
-    for number in (signal.SIGINT, signal.SIGTERM):
+    for number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
         signal.signal(number, request_stop)
-    stop.wait()
+    return stop
 
 
 def _start_youtube(config: Config, secrets: Secrets) -> YouTubePush | None:
@@ -134,13 +170,8 @@ def _start_youtube(config: Config, secrets: Secrets) -> YouTubePush | None:
     return push
 
 
-def _stream(arguments: argparse.Namespace) -> None:
-    """Publish the camera with the configuration until asked to stop."""
-    config = load_config(arguments.config)
-    secrets = load_secrets(arguments.secrets)
-    warn_if_clock_unsynchronised()
-    server = MediaServer(config.stream, ensure_binary())
-    viewer = ViewerServer(config.stream)
+def _log_viewer_addresses(config: Config) -> None:
+    """Log where viewers can watch."""
     address = primary_address() or "localhost"
     for name, url in viewer_urls(config.stream, address).items():
         logger.info("%s: %s", name, url)
@@ -148,36 +179,70 @@ def _stream(arguments: argparse.Namespace) -> None:
         "If the address changes, http://%s.local:%d/ may still work",
         socket.gethostname(), config.stream.viewer_port,
     )  # fmt: skip
+
+
+def _run_pipeline(
+    config: Config, secrets: Secrets, server: MediaServer, stop: threading.Event
+) -> None:
+    """Run the stream and its controls until asked to stop."""
     control = RaceControl(config.sequences, Path(config.control.journal_path))
     render = build_compositor(config, race_clock=control).render
-    push = None
+    keys = TerminalKeys(KeyHandler(control, stop.set), STDIN_FILE_DESCRIPTOR)
+    with (
+        FrameSource(config, secrets) as source,
+        Publisher(source, server, config.stream, render=render),
+    ):
+        push = _start_youtube(config, secrets)
+        keys.start()
+        try:
+            stop.wait()
+        finally:
+            keys.stop()
+            if push is not None:
+                push.stop()
+
+
+def _stream(arguments: argparse.Namespace) -> None:
+    """Publish the camera with the configuration until asked to stop."""
+    config = load_config(arguments.config)
+    secrets = load_secrets(arguments.secrets)
+    stop = _stop_on_signals()
+    warn_if_clock_unsynchronised()
+    server = MediaServer(config.stream, ensure_binary())
     try:
-        with (
-            FrameSource(config, secrets) as source,
-            Publisher(source, server, config.stream, render=render),
-        ):
-            push = _start_youtube(config, secrets)
-            _wait_for_shutdown()
+        viewer = ViewerServer(config.stream)
+        try:
+            _log_viewer_addresses(config)
+            _run_pipeline(config, secrets, server, stop)
+        finally:
+            viewer.stop()
     finally:
-        if push is not None:
-            push.stop()
-        viewer.stop()
         server.stop()
     logger.info("Stopped")
 
 
+def _run(arguments: argparse.Namespace) -> None:
+    """Do what the arguments ask for."""
+    if arguments.check_config:
+        _check_config(arguments)
+    elif arguments.scan:
+        _scan(arguments)
+    else:
+        _stream(arguments)
+
+
 def main() -> int:
     """Run the command-line application and return its exit code."""
-    configure_logging()
     arguments = _parse_arguments()
-    logger.info("startcam %s started", __version__)
-    if not arguments.scan and not arguments.config:
-        return 0
     try:
-        if arguments.scan:
-            _scan(arguments)
-        else:
-            _stream(arguments)
+        configure_logging(arguments.log_level, arguments.log_file)
+    except OSError as error:
+        configure_logging(arguments.log_level)
+        logger.error("Can't open the log file: %s", error)
+        return 1
+    logger.info("startcam %s started", __version__)
+    try:
+        _run(arguments)
     except (
         ConfigError,
         DiscoveryError,
