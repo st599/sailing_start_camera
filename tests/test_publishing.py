@@ -478,7 +478,9 @@ def test_command_streams_until_terminated(
     monkeypatch.setattr("sys.argv", ["startcam", "--config", str(path)])
     monkeypatch.setattr(cli, "ensure_binary", lambda: Path("/bin/true"))
     monkeypatch.setattr(cli, "FrameSource", FakeFrameSource)
-    monkeypatch.setattr(cli, "Publisher", lambda *_: FakeFrameSource(None, None))
+    monkeypatch.setattr(
+        cli, "Publisher", lambda *_, **__: FakeFrameSource(None, None)
+    )
     monkeypatch.setattr(cli, "ViewerServer", lambda stream: FakeViewer())
     timer = threading.Timer(0.2, os.kill, (os.getpid(), signal.SIGTERM))
     timer.start()
