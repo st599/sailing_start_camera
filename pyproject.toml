@@ -20,6 +20,7 @@ dev = ["pytest>=8", "ruff>=0.6"]
 startcam = "start_camera.cli:main"
 startcam-gui = "start_camera.gui.app:main"
 startcam-delay = "start_camera.delay:main"
+startcam-benchmark = "start_camera.benchmark:main"
 
 [tool.setuptools.dynamic]
 version = { attr = "start_camera.__version__" }
