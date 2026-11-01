@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from start_camera.config import CountdownOverlayConfig
 from start_camera.overlays.compositor import Layer, OverlayContext, corner_position
 from start_camera.overlays.text import draw_text_panel
-from start_camera.race_clock import Phase, RaceClock, RaceState
+from start_camera.race_clock import Phase, RaceState, RaceStateSource
 
 #
 #  GLOBAL VARIABLES
@@ -75,7 +75,9 @@ def format_count_up(seconds_since_start: float) -> str:
 class CountdownOverlay:
     """Show the time to the next start, or the time since the last one."""
 
-    def __init__(self, config: CountdownOverlayConfig, race_clock: RaceClock) -> None:
+    def __init__(
+        self, config: CountdownOverlayConfig, race_clock: RaceStateSource
+    ) -> None:
         """Hold the overlay's settings and the race clock.
 
         Args:

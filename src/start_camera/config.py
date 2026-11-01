@@ -301,6 +301,20 @@ class SequencesConfig(StrictModel):
         return value
 
 
+class ControlConfig(StrictModel):
+    """Settings for the race controls."""
+
+    delay_steps: list[float] = Field(default_factory=lambda: [1.0, 5.0, 10.0, -1.0])
+    journal_path: str = Field(default="race_journal.jsonl", min_length=1)
+
+    @field_validator("delay_steps")
+    @classmethod
+    def _steps_move_the_start(cls, values: list[float]) -> list[float]:
+        if 0 in values:
+            raise ValueError("a delay step can't be zero")
+        return values
+
+
 class Config(StrictModel):
     """The complete application configuration."""
 
@@ -310,6 +324,7 @@ class Config(StrictModel):
     overlays: OverlaysConfig = Field(default_factory=OverlaysConfig)
     start_line: StartLineConfig = Field(default_factory=StartLineConfig)
     sequences: SequencesConfig = Field(default_factory=SequencesConfig)
+    control: ControlConfig = Field(default_factory=ControlConfig)
 
 
 class Secrets(StrictModel):

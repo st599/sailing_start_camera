@@ -116,6 +116,13 @@ Each event has `minutes_before_start`, `flag` and `action` (`up` or `down`). `fl
 
 Check these against the current Racing Rules of Sailing and your sailing instructions.
 
+### `control`
+
+| Field | Default | Meaning |
+|---|---|---|
+| `delay_steps` | `[1, 5, 10, -1]` | Minutes for the one-press delay controls |
+| `journal_path` | `race_journal.jsonl` | The record of race commands. A relative path starts from where `startcam` runs |
+
 ## Secrets
 
 Secrets never go in the configuration file; a `password` field there is an error. Put

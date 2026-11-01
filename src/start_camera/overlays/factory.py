@@ -32,7 +32,7 @@ from start_camera.overlays.countdown import CountdownOverlay
 from start_camera.overlays.date_time import DateTimeOverlay
 from start_camera.overlays.flags import FlagsOverlay
 from start_camera.overlays.start_line import StartLineOverlay
-from start_camera.race_clock import RaceClock
+from start_camera.race_clock import RaceClock, RaceStateSource
 
 #
 # FUNCTIONS
@@ -42,7 +42,7 @@ from start_camera.race_clock import RaceClock
 def build_compositor(
     config: Config,
     clock: Callable[[], float] = time.time,
-    race_clock: RaceClock | None = None,
+    race_clock: RaceStateSource | None = None,
 ) -> Compositor:
     """Return a compositor for the enabled overlays.
 

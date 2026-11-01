@@ -28,6 +28,7 @@ even if the clock jumps.
 from dataclasses import dataclass
 from datetime import date, datetime
 from enum import Enum
+from typing import Protocol
 
 #
 # PROJECT IMPORTS
@@ -92,6 +93,14 @@ class RaceState:
     flags: tuple[str, ...]
     upcoming: ScheduledStart | None
     latest: ScheduledStart | None
+
+
+class RaceStateSource(Protocol):
+    """Anything that can report the state of the start sequences."""
+
+    def state(self, now: float) -> RaceState:
+        """Return the state at a moment."""
+        ...
 
 
 @dataclass

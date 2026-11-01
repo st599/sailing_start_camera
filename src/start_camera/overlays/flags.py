@@ -51,7 +51,7 @@ from start_camera.race_clock import (
     GENERAL_RECALL_FLAG,
     INDIVIDUAL_RECALL_FLAG,
     POSTPONEMENT_FLAG,
-    RaceClock,
+    RaceStateSource,
 )
 
 #
@@ -106,7 +106,7 @@ class FlagsOverlay:
     def __init__(
         self,
         config: FlagsOverlayConfig,
-        race_clock: RaceClock,
+        race_clock: RaceStateSource,
         sequences: list[SequenceConfig],
         countdown: CountdownOverlayConfig | None = None,
     ) -> None:

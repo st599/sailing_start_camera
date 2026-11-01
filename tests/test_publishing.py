@@ -473,6 +473,7 @@ def test_command_streams_until_terminated(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    monkeypatch.chdir(tmp_path)
     path = tmp_path / "config.json"
     save_config(Config(), path)
     monkeypatch.setattr("sys.argv", ["startcam", "--config", str(path)])
