@@ -76,7 +76,9 @@ An enabled line needs at least two points, or one more than the degree for `poly
 | Field | Default | Meaning |
 |---|---|---|
 | `first_start` | `null` | Local time of the first start, as `"HH:MM:SS"`. `null` means start by hand |
-| `items` | `[]` | The start sequences, in order |
+| `general_recall` | `delay_following` | `delay_following` or `end_of_queue`; see [Race control](race_control.md) |
+| `recall_flag_minutes` | `1` | How long the First Substitute flies after a general recall |
+| `items` | `[]` | The start sequences, in order; up to 10 |
 
 Each item in `items` has:
 
@@ -85,7 +87,7 @@ Each item in `items` has:
 | `name` | required | Name of the class or sequence |
 | `class_flag` | required | Name of its class flag |
 | `preparatory_flag` | `P` | `P`, `I`, `Z`, `Z+I`, `U` or `black` |
-| `minutes_after_previous` | `5` | Minutes from the previous start to this one; ignored for the first |
+| `minutes_after_previous` | `5` | Minutes from the previous start to this one; ignored for the first. With the default five minute sequence, `5` puts this class's warning signal at the previous class's start |
 | `events` | five minute sequence | When flags go up and down |
 
 Each event has `minutes_before_start`, `flag` and `action` (`up` or `down`). `flag` is
