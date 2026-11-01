@@ -111,6 +111,10 @@ class GuiSession:
         """Return the newest frame with its overlays."""
         return self._compositor.render(self._source.latest())
 
+    def camera_frame(self) -> Frame:
+        """Return the camera's newest frame, without overlays."""
+        return self._source.latest()
+
     def camera_is_live(self) -> bool:
         """Return whether the camera's picture is arriving."""
         return self._source.latest().live
