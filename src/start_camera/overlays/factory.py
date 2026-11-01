@@ -28,7 +28,9 @@ from collections.abc import Callable
 #
 from start_camera.config import Config
 from start_camera.overlays.compositor import Compositor, Overlay
+from start_camera.overlays.countdown import CountdownOverlay
 from start_camera.overlays.date_time import DateTimeOverlay
+from start_camera.race_clock import RaceClock
 
 #
 # FUNCTIONS
@@ -36,7 +38,9 @@ from start_camera.overlays.date_time import DateTimeOverlay
 
 
 def build_compositor(
-    config: Config, clock: Callable[[], float] = time.time
+    config: Config,
+    clock: Callable[[], float] = time.time,
+    race_clock: RaceClock | None = None,
 ) -> Compositor:
     """Return a compositor for the enabled overlays.
 
@@ -46,9 +50,13 @@ def build_compositor(
     Args:
         config: The configuration.
         clock: Provides the current time.
+        race_clock: The race clock to show. Defaults to a new one for the configuration.
     """
     latency_s = config.camera.capture_latency_ms / 1000
     overlays: list[Overlay] = []
     if config.overlays.datetime.enabled:
         overlays.append(DateTimeOverlay(config.overlays.datetime))
+    if config.overlays.countdown.enabled and config.sequences.items:
+        race_clock = race_clock or RaceClock(config.sequences, clock())
+        overlays.append(CountdownOverlay(config.overlays.countdown, race_clock))
     return Compositor(overlays, clock=lambda: clock() - latency_s)

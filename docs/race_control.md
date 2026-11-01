@@ -29,6 +29,25 @@ value for a gap. Smaller values overlap, and both sets of flags show together.
 If `first_start` is set, the sequence runs from that local time today. Otherwise it waits
 for the race officer to start it, and the first warning signal goes up at that moment.
 
+## Countdown display
+
+The top right corner shows the class name and a time, on the first line that applies:
+
+| Situation | Shows |
+|---|---|
+| Abandoned | `ABANDONED` |
+| Postponed | `POSTPONED` |
+| A class's sequence is running | `Lasers -04:59`, counting down to `00:00` at the start |
+| Within `count_up_minutes` of the last start | `Lasers +12:34` in the count-up colour |
+| A later start is scheduled | `Lasers 13:00:00`, the time of the start |
+| Waiting for the race officer | `READY` |
+| None of these | Nothing |
+
+With rolling starts, the next class's countdown appears as soon as its sequence begins, so
+there's no count-up between them. The count-up then runs after the last start.
+
+The display is `+00:00` for the first second after a start.
+
 ## Commands
 
 | Command | Effect |
