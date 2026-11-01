@@ -30,6 +30,7 @@ from start_camera.config import Config
 from start_camera.overlays.compositor import Compositor, Overlay
 from start_camera.overlays.countdown import CountdownOverlay
 from start_camera.overlays.date_time import DateTimeOverlay
+from start_camera.overlays.flags import FlagsOverlay
 from start_camera.overlays.start_line import StartLineOverlay
 from start_camera.race_clock import RaceClock
 
@@ -59,7 +60,16 @@ def build_compositor(
         overlays.append(StartLineOverlay(config.start_line))
     if config.overlays.datetime.enabled:
         overlays.append(DateTimeOverlay(config.overlays.datetime))
-    if config.overlays.countdown.enabled and config.sequences.items:
-        race_clock = race_clock or RaceClock(config.sequences, clock())
-        overlays.append(CountdownOverlay(config.overlays.countdown, race_clock))
+    sequences = config.sequences
+    if sequences.items or sequences.day_flags:
+        race_clock = race_clock or RaceClock(sequences, clock())
+    countdown = config.overlays.countdown if sequences.items else None
+    if countdown is not None and countdown.enabled:
+        overlays.append(CountdownOverlay(countdown, race_clock))
+    else:
+        countdown = None
+    if race_clock is not None and config.overlays.flags.enabled:
+        overlays.append(
+            FlagsOverlay(config.overlays.flags, race_clock, sequences.items, countdown)
+        )
     return Compositor(overlays, clock=lambda: clock() - latency_s)

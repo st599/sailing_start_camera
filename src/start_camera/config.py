@@ -199,9 +199,10 @@ class FlagsOverlayConfig(StrictModel):
     """The start sequence flags overlay."""
 
     enabled: bool = True
-    position: Corner = Corner.BOTTOM_RIGHT
+    position: Corner = Corner.TOP_RIGHT
     scale: float = Field(default=1.0, gt=0, le=10)
     show_labels: bool = True
+    custom_directory: str = Field(default="custom_flags", min_length=1)
 
 
 class OverlaysConfig(StrictModel):
@@ -282,12 +283,14 @@ class SequencesConfig(StrictModel):
 
     A first_start of None means the race officer starts the first sequence by hand.
     It is a local time of day. general_recall says whether later starts wait for the
-    recalled class, or the recalled class goes to the end of the queue.
+    recalled class, or the recalled class goes to the end of the queue. day_flags fly
+    all day, whatever the sequences are doing.
     """
 
     first_start: time | None = None
     general_recall: GeneralRecallMode = GeneralRecallMode.DELAY_FOLLOWING
     recall_flag_minutes: float = Field(default=1, gt=0)
+    day_flags: list[Annotated[str, Field(min_length=1)]] = Field(default_factory=list)
     items: list[SequenceConfig] = Field(default_factory=list, max_length=MAX_STARTS)
 
     @field_validator("first_start")

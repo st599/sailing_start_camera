@@ -39,9 +39,10 @@
     },
     "flags": {
       "enabled": true,
-      "position": "bottom_right",
+      "position": "top_right",
       "scale": 1.0,
-      "show_labels": true
+      "show_labels": true,
+      "custom_directory": "custom_flags"
     }
   },
   "start_line": {
@@ -61,6 +62,7 @@
     "first_start": "13:00:00",
     "general_recall": "delay_following",
     "recall_flag_minutes": 1,
+    "day_flags": [],
     "items": [
       {
         "name": "Handicap",

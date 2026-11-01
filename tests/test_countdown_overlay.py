@@ -308,7 +308,11 @@ def test_redraws_only_when_the_display_changes() -> None:
 
 def test_factory_adds_the_overlay_when_there_are_sequences() -> None:
     config = Config(sequences=sequences("A"))
-    assert len(build_compositor(config, clock=lambda: T0)._overlays) == 2
+    kinds = [
+        type(item.overlay)
+        for item in build_compositor(config, clock=lambda: T0)._overlays
+    ]
+    assert CountdownOverlay in kinds
 
 
 def test_factory_leaves_it_out_with_no_sequences() -> None:
@@ -320,7 +324,11 @@ def test_factory_leaves_it_out_when_disabled() -> None:
         sequences=sequences("A"),
         overlays=OverlaysConfig(countdown=CountdownOverlayConfig(enabled=False)),
     )
-    assert len(build_compositor(config, clock=lambda: T0)._overlays) == 1
+    kinds = [
+        type(item.overlay)
+        for item in build_compositor(config, clock=lambda: T0)._overlays
+    ]
+    assert CountdownOverlay not in kinds
 
 
 def test_factory_uses_the_race_clock_it_is_given() -> None:
