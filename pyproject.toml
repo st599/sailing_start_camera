@@ -14,6 +14,7 @@ dependencies = ["numpy>=1.26", "opencv-python-headless>=4.9", "pydantic>=2.7"]
 
 [project.optional-dependencies]
 gui = ["PySide6-Essentials>=6.7"]
+gui-dev = ["pytest-qt>=4.4"]
 dev = ["pytest>=8", "ruff>=0.6"]
 
 [project.scripts]

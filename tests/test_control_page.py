@@ -39,7 +39,7 @@ from pydantic import ValidationError
 #
 # PROJECT IMPORTS
 #
-from start_camera import cli, control_page
+from start_camera import control_page, pipeline
 from start_camera.config import (
     CameraConfig,
     Config,
@@ -510,7 +510,7 @@ def test_no_password_leaves_the_page_off(
     config = make_config()
     control = RaceControl(config.sequences, tmp_path / "j.jsonl", Clock())
     with caplog.at_level(logging.INFO):
-        assert cli._start_control_page(config, Secrets(), control) is None
+        assert pipeline.start_control_page(config, Secrets(), control) is None
     assert "phone page is off" in caplog.text
 
 
@@ -520,11 +520,11 @@ def test_page_failure_doesnt_stop_the_application(
     def fail(*_: object, **__: object) -> None:
         raise ControlPageError("no certificate")
 
-    monkeypatch.setattr(cli, "ControlPage", fail)
+    monkeypatch.setattr(pipeline, "ControlPage", fail)
     config = make_config()
     control = RaceControl(config.sequences, tmp_path / "j.jsonl", Clock())
     secrets = Secrets(control_password=PASSWORD)
-    assert cli._start_control_page(config, secrets, control) is None
+    assert pipeline.start_control_page(config, secrets, control) is None
     assert "phone control page is off" in caplog.text
 
 
@@ -534,9 +534,9 @@ def test_port_in_use_doesnt_stop_the_application(
     def fail(*_: object, **__: object) -> None:
         raise OSError("Address already in use")
 
-    monkeypatch.setattr(cli, "ControlPage", fail)
+    monkeypatch.setattr(pipeline, "ControlPage", fail)
     config = make_config()
     control = RaceControl(config.sequences, tmp_path / "j.jsonl", Clock())
     secrets = Secrets(control_password=PASSWORD)
-    assert cli._start_control_page(config, secrets, control) is None
+    assert pipeline.start_control_page(config, secrets, control) is None
     assert "Address already in use" in caplog.text

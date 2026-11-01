@@ -31,6 +31,7 @@ import select
 import subprocess
 import threading
 import time
+from collections import deque
 from collections.abc import Callable
 from types import TracebackType
 from typing import Protocol, Self
@@ -53,6 +54,8 @@ logger = logging.getLogger(__name__)
 
 WRITE_TIMEOUT_S = 5.0
 BEHIND_WARNING_INTERVAL_S = 30.0
+LATE_WINDOW_S = 10.0
+LATE_TICKS_TO_WARN = 5
 
 #
 # FUNCTIONS
@@ -185,6 +188,7 @@ class Publisher:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._last_behind_warning = 0.0
+        self._recent_late_ticks: deque[float] = deque()
         self.frames_sent = 0
         self.late_ticks = 0
 
@@ -265,7 +269,16 @@ class Publisher:
         self._encoder = None
 
     def _warn_behind(self, now: float) -> None:
-        """Warn, occasionally, that this computer can't keep up with the output rate."""
+        """Warn, occasionally, if this computer keeps failing to reach the output rate.
+
+        An occasional late frame is normal, such as while the encoder loads, and warning
+        about those would teach people to ignore a real problem.
+        """
+        self._recent_late_ticks.append(now)
+        while now - self._recent_late_ticks[0] > LATE_WINDOW_S:
+            self._recent_late_ticks.popleft()
+        if len(self._recent_late_ticks) < LATE_TICKS_TO_WARN:
+            return
         if now - self._last_behind_warning >= BEHIND_WARNING_INTERVAL_S:
             self._last_behind_warning = now
             logger.warning(

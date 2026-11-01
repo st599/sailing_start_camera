@@ -27,7 +27,7 @@ from dataclasses import dataclass
 #
 # PROJECT IMPORTS
 #
-from start_camera.config import CountdownOverlayConfig
+from start_camera.config import Config, CountdownOverlayConfig
 from start_camera.overlays.compositor import Layer, OverlayContext, corner_position
 from start_camera.overlays.text import draw_text_panel
 from start_camera.race_clock import Phase, RaceState, RaceStateSource
@@ -72,6 +72,32 @@ def format_count_up(seconds_since_start: float) -> str:
     return f"+{minutes:02d}:{seconds:02d}"
 
 
+@dataclass(frozen=True)
+class RaceSummary:
+    """What the race controls show about the racing."""
+
+    phase: Phase
+    display: str
+    flags: tuple[str, ...]
+
+
+class RaceDisplay:
+    """Summarise the racing for a control panel, matching what the video shows."""
+
+    def __init__(self, config: Config, race_clock: RaceStateSource) -> None:
+        """Hold the settings and the race clock."""
+        self._race_clock = race_clock
+        self._latency_s = config.camera.capture_latency_ms / 1000
+        self._countdown = CountdownOverlay(config.overlays.countdown, race_clock)
+
+    def summary(self, now: float) -> RaceSummary:
+        """Return the summary at a real time, allowing for the camera's delay."""
+        video_time = now - self._latency_s
+        race = self._race_clock.state(video_time)
+        display = self._countdown.display(race, video_time)
+        return RaceSummary(race.phase, display.text if display else "", race.flags)
+
+
 class CountdownOverlay:
     """Show the time to the next start, or the time since the last one."""
 
@@ -89,7 +115,7 @@ class CountdownOverlay:
 
     def state(self, context: OverlayContext) -> _Display | None:
         """Return what to show, which changes exactly when the display needs to."""
-        return self._display(self._race_clock.state(context.now), context.now)
+        return self.display(self._race_clock.state(context.now), context.now)
 
     def draw(self, context: OverlayContext) -> Layer | None:
         """Draw the text in the configured corner, if there's anything to show."""
@@ -103,7 +129,7 @@ class CountdownOverlay:
         x, y = corner_position(self._config.position, context, width, height)
         return Layer(image, x, y)
 
-    def _display(self, race: RaceState, now: float) -> _Display | None:
+    def display(self, race: RaceState, now: float) -> _Display | None:
         """Choose what to show in a race state."""
         if race.phase is Phase.ABANDONED:
             return _Display(ABANDONED_TEXT, self._config.colour)

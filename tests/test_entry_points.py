@@ -52,6 +52,7 @@ def test_main_logs_start_without_using_stdout(
 ) -> None:
     """Each application logs that it started, exits cleanly and leaves stdout alone."""
     monkeypatch.setattr("sys.argv", [name, *arguments])
+    monkeypatch.setattr(app, "_run_window", lambda _: 0)
     result = main()
     captured = capsys.readouterr()
     assert result == 0
