@@ -237,6 +237,16 @@ def viewer_urls(stream: StreamConfig, address: str) -> dict[str, str]:
     }
 
 
+def _end_with_parent() -> list[str]:
+    """Return a command prefix that ends a process if the application is killed.
+
+    Otherwise, a server left behind would hold the ports until it was stopped by hand.
+    The other processes end by themselves when their pipes to the application close.
+    """
+    setpriv = shutil.which("setpriv")
+    return [setpriv, "--pdeathsig", "KILL"] if setpriv else []
+
+
 class MediaServer:
     """Run MediaMTX, restarting it if it exits."""
 
@@ -277,7 +287,7 @@ class MediaServer:
     def _start(self, now: float) -> None:
         """Start the server process."""
         self._process = subprocess.Popen(
-            [str(self._binary), str(self._config_path)],
+            [*_end_with_parent(), str(self._binary), str(self._config_path)],
             cwd=self._directory.name,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
