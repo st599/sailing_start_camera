@@ -48,8 +48,8 @@ All the stream's ports must be different.
 | `position` | `top_left`, `top_right`, `bottom_left` or `bottom_right` |
 | `scale` | Size multiplier (default `1.0`) |
 
-`datetime` defaults to `top_left`, `countdown` to `top_right` and `flags` to
-`bottom_right`. They also have:
+`datetime` defaults to `top_left`, and `countdown` and `flags` to `top_right`, where the
+flags stack below the countdown. They also have:
 
 | Overlay | Field | Default | Meaning |
 |---|---|---|---|
@@ -57,7 +57,8 @@ All the stream's ports must be different.
 | `countdown` | `count_up_colour` | `#80ff80` | Text colour when counting up, as `#rrggbb` |
 | `countdown` | `count_up_minutes` | `90` | How long to count up after the last start |
 | `datetime` | `format` | `%H:%M:%S %d/%m/%y` | [strftime](https://docs.python.org/3/library/datetime.html#format-codes) format |
-| `flags` | `show_labels` | `true` | Show each flag's name |
+| `flags` | `show_labels` | `true` | Show what each flag means |
+| `flags` | `custom_directory` | `custom_flags` | Folder of custom flag images; see [Flags](flags.md). A relative path starts from where `startcam` runs |
 
 ### `start_line`
 
@@ -90,6 +91,7 @@ The fit types are:
 | `first_start` | `null` | Local time of the first start, as `"HH:MM:SS"`. `null` means start by hand |
 | `general_recall` | `delay_following` | `delay_following` or `end_of_queue`; see [Race control](race_control.md) |
 | `recall_flag_minutes` | `1` | How long the First Substitute flies after a general recall |
+| `day_flags` | `[]` | Flags that fly all day, such as `["Y"]` |
 | `items` | `[]` | The start sequences, in order; up to 10 |
 
 Each item in `items` has:

@@ -226,3 +226,4 @@ CLAUDE.md
 # Local configuration and secrets
 config.json
 secrets.json
+custom_flags/

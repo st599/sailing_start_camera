@@ -291,6 +291,7 @@ class RaceClock:
             flags.append(GENERAL_RECALL_FLAG)
         if now < self._individual_recall_until:
             flags.append(INDIVIDUAL_RECALL_FLAG)
+        flags.extend(self._config.day_flags)
         return tuple(dict.fromkeys(flags))
 
     def _pending(self, now: float) -> _Entry | None:
