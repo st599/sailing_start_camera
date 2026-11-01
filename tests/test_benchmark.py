@@ -52,7 +52,16 @@ from start_camera.output import Publisher
 #  GLOBAL VARIABLES
 #
 
-DRAIN = "import sys\nwhile sys.stdin.buffer.read(65536): pass"
+BUSY_ENCODER = """
+import os
+os.set_blocking(0, False)
+while True:
+    try:
+        if os.read(0, 65536) == b"":
+            break
+    except BlockingIOError:
+        pass
+"""
 
 #
 # FUNCTIONS
@@ -195,7 +204,7 @@ def test_scenario_measures_the_pipeline() -> None:
     ) -> Publisher:
         seen.append(stream)
         # The argument marks this stand-in as the encoder, as the real one's would.
-        command = lambda _: [sys.executable, "-c", DRAIN, "pipe:0"]  # noqa: E731
+        command = lambda _: [sys.executable, "-c", BUSY_ENCODER, "pipe:0"]  # noqa: E731
         return Publisher(source, server, stream, command=command, **options)
 
     scenario = Scenario(SD_CHANNEL, 64, 36, 20)
@@ -215,8 +224,8 @@ def test_scenario_measures_the_pipeline() -> None:
     assert 8 <= outcome.camera_fps <= 12
     assert outcome.live_fraction == 1.0
     assert outcome.render_ms > 0
-    assert outcome.cpu_cores > 0
-    assert "encoder" in outcome.cpu_by_role
+    assert outcome.cpu_by_role["encoder"] > 0
+    assert outcome.cpu_cores >= outcome.cpu_by_role["encoder"]
     assert outcome.memory_mb > 0
 
 
@@ -229,6 +238,10 @@ def test_process_role_comes_from_its_command(argument: str, role: str) -> None:
         [sys.executable, "-c", "import time; time.sleep(30)", argument]
     )
     try:
+        # A new process briefly shows its parent's command until it has started.
+        end = time.monotonic() + 10
+        while benchmark._role(child.pid) != role and time.monotonic() < end:
+            time.sleep(0.01)
         assert benchmark._role(child.pid) == role
     finally:
         child.kill()
