@@ -1,0 +1,249 @@
+{
+  "club": "Tamesis Club",
+  "classes": [
+    {
+      "name": "Merlin Rocket",
+      "flag": "O"
+    },
+    {
+      "name": "ILCA (Laser)",
+      "flag": "8"
+    },
+    {
+      "name": "N18",
+      "flag": "R"
+    },
+    {
+      "name": "Enterprise",
+      "flag": "E"
+    },
+    {
+      "name": "Firefly",
+      "flag": "F"
+    },
+    {
+      "name": "Handicap",
+      "flag": "G"
+    },
+    {
+      "name": "Solo",
+      "flag": "Solo"
+    },
+    {
+      "name": "Topper",
+      "flag": "T"
+    },
+    {
+      "name": "All classes",
+      "flag": "1"
+    },
+    {
+      "name": "A-Rater",
+      "flag": "A"
+    }
+  ],
+  "templates": [
+    {
+      "name": "Summer Blue, morning",
+      "sequences": {
+        "first_start": "10:30:00",
+        "items": [
+          {
+            "name": "All classes",
+            "class_flag": "1"
+          },
+          {
+            "name": "N18",
+            "class_flag": "R"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Summer White, morning",
+      "sequences": {
+        "first_start": "11:30:00",
+        "items": [
+          {
+            "name": "Merlin Rocket",
+            "class_flag": "O"
+          },
+          {
+            "name": "ILCA and Solo",
+            "class_flag": "8+Solo",
+            "flag_labels": {
+              "8": "ILCA (Laser)",
+              "Solo": "Solo"
+            }
+          },
+          {
+            "name": "Enterprise and Handicap",
+            "class_flag": "E+G",
+            "flag_labels": {
+              "E": "Enterprise",
+              "G": "Handicap"
+            }
+          },
+          {
+            "name": "N18",
+            "class_flag": "R"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Summer Blue and White, morning",
+      "sequences": {
+        "first_start": "10:30:00",
+        "items": [
+          {
+            "name": "All classes",
+            "class_flag": "1"
+          },
+          {
+            "name": "N18",
+            "class_flag": "R"
+          },
+          {
+            "name": "Merlin Rocket",
+            "class_flag": "O",
+            "minutes_after_previous": 55
+          },
+          {
+            "name": "ILCA and Solo",
+            "class_flag": "8+Solo",
+            "flag_labels": {
+              "8": "ILCA (Laser)",
+              "Solo": "Solo"
+            }
+          },
+          {
+            "name": "Enterprise and Handicap",
+            "class_flag": "E+G",
+            "flag_labels": {
+              "E": "Enterprise",
+              "G": "Handicap"
+            }
+          },
+          {
+            "name": "N18",
+            "class_flag": "R"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Summer Blue, afternoon",
+      "sequences": {
+        "first_start": "14:00:00",
+        "items": [
+          {
+            "name": "All classes",
+            "class_flag": "1"
+          },
+          {
+            "name": "N18",
+            "class_flag": "R"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Summer White, afternoon",
+      "sequences": {
+        "first_start": "15:00:00",
+        "items": [
+          {
+            "name": "Merlin Rocket",
+            "class_flag": "O"
+          },
+          {
+            "name": "ILCA and Solo",
+            "class_flag": "8+Solo",
+            "flag_labels": {
+              "8": "ILCA (Laser)",
+              "Solo": "Solo"
+            }
+          },
+          {
+            "name": "Enterprise and Handicap",
+            "class_flag": "E+G",
+            "flag_labels": {
+              "E": "Enterprise",
+              "G": "Handicap"
+            }
+          },
+          {
+            "name": "N18",
+            "class_flag": "R"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Summer Blue and White, afternoon",
+      "sequences": {
+        "first_start": "14:00:00",
+        "items": [
+          {
+            "name": "All classes",
+            "class_flag": "1"
+          },
+          {
+            "name": "N18",
+            "class_flag": "R"
+          },
+          {
+            "name": "Merlin Rocket",
+            "class_flag": "O",
+            "minutes_after_previous": 55
+          },
+          {
+            "name": "ILCA and Solo",
+            "class_flag": "8+Solo",
+            "flag_labels": {
+              "8": "ILCA (Laser)",
+              "Solo": "Solo"
+            }
+          },
+          {
+            "name": "Enterprise and Handicap",
+            "class_flag": "E+G",
+            "flag_labels": {
+              "E": "Enterprise",
+              "G": "Handicap"
+            }
+          },
+          {
+            "name": "N18",
+            "class_flag": "R"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Thursday N18 signals",
+      "sequences": {
+        "first_start": null,
+        "items": [
+          {
+            "name": "N18",
+            "class_flag": "R",
+            "events": [
+              {
+                "minutes_before_start": 1,
+                "flag": "class",
+                "action": "up"
+              },
+              {
+                "minutes_before_start": 0,
+                "flag": "class",
+                "action": "down"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

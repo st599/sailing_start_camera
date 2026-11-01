@@ -20,6 +20,10 @@ The default sequence, in minutes before the start, is:
 | 1 | Preparatory flag down |
 | 0 | Class flag down (start) |
 
+A combined start uses one sequence with several class flags joined by `+`, such as `8+Solo`,
+which all fly together. `flag_labels` can name the class of each, such as
+`{"8": "ILCA (Laser)", "Solo": "Solo"}`.
+
 Each start's time is `minutes_after_previous` after the one before. With the default of 5,
 each class's warning goes up as the previous class's flag drops, with no gap. Use a larger
 value for a gap. Smaller values overlap, and both sets of flags show together.

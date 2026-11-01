@@ -57,6 +57,7 @@ from PySide6.QtWidgets import (
 #
 from start_camera.config import Config, ConfigError
 from start_camera.gui.line_editor import LineEditorDialog
+from start_camera.gui.sequence_editor import SequenceEditorDialog
 from start_camera.gui.session import GuiSession
 from start_camera.gui.settings_dialog import SettingsDialog
 from start_camera.gui.settings_model import ConfigDocument
@@ -319,6 +320,7 @@ class MainWindow(QMainWindow):
             ("Save &As...", QKeySequence.StandardKey.SaveAs, self._save_file_as),
             ("Se&ttings...", None, self._open_settings),
             ("Start &line...", None, self._open_line_editor),
+            ("Start se&quences...", None, self._open_sequence_editor),
         )
         menu = self.menuBar().addMenu("&File")
         for text, shortcut, action in items:
@@ -363,6 +365,24 @@ class MainWindow(QMainWindow):
         if self._document.update(config):
             self._use_config(config)
         self._show_title()
+
+    def _open_sequence_editor(self) -> None:
+        """Edit the start sequences, using the new ones straight away."""
+        if not self._config_can_change():
+            return
+        dialog = self._sequence_editor()
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        config = self._document.config.model_copy(
+            update={"sequences": dialog.result_config}
+        )
+        if self._document.update(config):
+            self._use_config(config)
+        self._show_title()
+
+    def _sequence_editor(self) -> SequenceEditorDialog:
+        """Return the sequence editor."""
+        return SequenceEditorDialog(self._document.config.sequences, self)
 
     def _line_editor(self) -> LineEditorDialog:
         """Return the start line editor."""

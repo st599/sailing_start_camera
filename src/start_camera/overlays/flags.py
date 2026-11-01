@@ -48,6 +48,7 @@ from start_camera.overlays.text import (
 )
 from start_camera.race_clock import (
     ABANDONMENT_FLAG,
+    COMBINED_FLAG_SEPARATOR,
     GENERAL_RECALL_FLAG,
     INDIVIDUAL_RECALL_FLAG,
     POSTPONEMENT_FLAG,
@@ -63,7 +64,6 @@ REFERENCE_GAP = 6
 LABEL_SCALE = 0.7
 LABEL_COLOUR = "#ffffff"
 COUNTDOWN_SAMPLE = "00:00"
-COMBINED_FLAG_SEPARATOR = "+"
 SIGNAL_LABELS = {
     POSTPONEMENT_FLAG: "AP Postponed",
     GENERAL_RECALL_FLAG: "General recall",
@@ -85,8 +85,9 @@ def _class_labels(sequences: list[SequenceConfig]) -> dict[str, str]:
         for part in preparatory.split(COMBINED_FLAG_SEPARATOR):
             labels[part] = "Black flag" if part == "black" else f"{part} Preparatory"
     for sequence in sequences:
-        flag, name = sequence.class_flag, sequence.name
-        labels[flag] = name if flag.lower() == name.lower() else f"{flag} {name}"
+        for flag in sequence.class_flag.split(COMBINED_FLAG_SEPARATOR):
+            name = sequence.flag_labels.get(flag, sequence.name)
+            labels[flag] = name if flag.lower() == name.lower() else f"{flag} {name}"
     return labels
 
 
@@ -126,12 +127,8 @@ class FlagsOverlay:
         self._images: dict[tuple[str, int], NDArray[np.uint8]] = {}
 
     def state(self, context: OverlayContext) -> tuple[str, ...]:
-        """Return the flags flying, with combined signals as separate flags."""
-        flags = self._race_clock.state(context.now).flags
-        separate = [
-            part for flag in flags for part in flag.split(COMBINED_FLAG_SEPARATOR)
-        ]
-        return tuple(dict.fromkeys(separate))
+        """Return the flags flying."""
+        return self._race_clock.state(context.now).flags
 
     def draw(self, context: OverlayContext) -> Layer | None:
         """Draw the stack, or nothing if no flags are flying."""
