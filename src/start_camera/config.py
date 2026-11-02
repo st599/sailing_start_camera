@@ -205,12 +205,29 @@ class FlagsOverlayConfig(StrictModel):
     custom_directory: str = Field(default="custom_flags", min_length=1)
 
 
+class LogoOverlayConfig(StrictModel):
+    """A fixed image, such as the club's logo."""
+
+    enabled: bool = False
+    path: str = ""
+    position: Corner = Corner.BOTTOM_LEFT
+    height: float = Field(default=0.12, gt=0, le=0.5)
+    opacity: Fraction = 1.0
+
+    @model_validator(mode="after")
+    def _enabled_logo_has_a_file(self) -> Self:
+        if self.enabled and not self.path.strip():
+            raise ValueError("path: an enabled logo needs an image file")
+        return self
+
+
 class OverlaysConfig(StrictModel):
     """Settings for each overlay."""
 
     datetime: DateTimeOverlayConfig = Field(default_factory=DateTimeOverlayConfig)
     countdown: CountdownOverlayConfig = Field(default_factory=CountdownOverlayConfig)
     flags: FlagsOverlayConfig = Field(default_factory=FlagsOverlayConfig)
+    logo: LogoOverlayConfig = Field(default_factory=LogoOverlayConfig)
 
 
 class LinePoint(StrictModel):

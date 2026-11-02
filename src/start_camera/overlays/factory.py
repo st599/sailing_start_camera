@@ -20,6 +20,7 @@
 # SYSTEM IMPORTS
 #
 
+import logging
 import time
 from collections.abc import Callable
 
@@ -31,12 +32,39 @@ from start_camera.overlays.compositor import Compositor, Overlay
 from start_camera.overlays.countdown import CountdownOverlay
 from start_camera.overlays.date_time import DateTimeOverlay
 from start_camera.overlays.flags import FlagsOverlay
+from start_camera.overlays.logo import LogoOverlay
 from start_camera.overlays.start_line import StartLineOverlay
 from start_camera.race_clock import RaceClock, RaceStateSource
 
 #
+#  GLOBAL VARIABLES
+#
+
+logger = logging.getLogger(__name__)
+
+#
 # FUNCTIONS
 #
+
+
+def _warn_about_a_shared_corner(config: Config) -> None:
+    """Warn if the logo shares its corner with another overlay, as they'd overlap."""
+    overlays = config.overlays
+    others = [
+        (name, item)
+        for name, item in (
+            ("date", overlays.datetime),
+            ("countdown", overlays.countdown),
+            ("flags", overlays.flags),
+        )
+        if item.enabled
+    ]
+    for name, item in others:
+        if item.position is overlays.logo.position:
+            logger.warning(
+                "The logo and the %s share the %s corner, so they may overlap",
+                name, item.position.value,
+            )  # fmt: skip
 
 
 def build_compositor(
@@ -58,6 +86,9 @@ def build_compositor(
     overlays: list[Overlay] = []
     if config.start_line.enabled:
         overlays.append(StartLineOverlay(config.start_line))
+    if config.overlays.logo.enabled:
+        overlays.append(LogoOverlay(config.overlays.logo))
+        _warn_about_a_shared_corner(config)
     if config.overlays.datetime.enabled:
         overlays.append(DateTimeOverlay(config.overlays.datetime))
     sequences = config.sequences

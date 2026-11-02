@@ -60,6 +60,22 @@ flags stack below the countdown. They also have:
 | `flags` | `show_labels` | `true` | Show what each flag means |
 | `flags` | `custom_directory` | `custom_flags` | Folder of custom flag images; see [Flags](flags.md). A relative path starts from where `startcam` runs |
 
+### `overlays.logo`
+
+A fixed image, such as the club's logo.
+
+| Field | Default | Meaning |
+|---|---|---|
+| `enabled` | `false` | Show the logo |
+| `path` | `""` | The image file. A relative path starts from where the application runs |
+| `position` | `bottom_left` | `top_left`, `top_right`, `bottom_left` or `bottom_right` |
+| `height` | `0.12` | Height as a fraction of the video's height, up to `0.5`. The width follows |
+| `opacity` | `1.0` | From 0 (invisible) to 1 (solid) |
+
+A PNG with a transparent background looks best; JPEG, WebP and BMP also work. Keep logos in the
+`logos` folder, which isn't in Git, and copy it to each computer. If the file can't be read, a
+warning is logged and nothing is shown, and the stream carries on.
+
 ### `start_line`
 
 | Field | Default | Meaning |

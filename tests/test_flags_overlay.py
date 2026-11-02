@@ -256,7 +256,7 @@ def test_unreadable_image_falls_back_to_the_name(
     (tmp_path / "Solo.png").write_text("not an image", encoding="utf-8")
     image = load_flag("Solo", 40, tmp_path)
     assert image[:, :, 3].min() == 255
-    assert "Can't read the flag image" in caplog.text
+    assert "Can't read the image" in caplog.text
 
 
 def test_unknown_flag_shows_its_name_with_a_warning(

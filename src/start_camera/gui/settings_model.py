@@ -58,6 +58,7 @@ class FieldKind(Enum):
     CHECK = "check"
     CHOICE = "choice"
     LIST = "list"
+    FILE = "file"
 
 
 @dataclass(frozen=True)
@@ -134,6 +135,17 @@ FIELDS = (
     Field("Overlays", "overlays.flags.scale", "Flags size", FieldKind.NUMBER),
     Field("Overlays", "overlays.flags.show_labels", "Flag labels", FieldKind.CHECK),
     Field("Overlays", "overlays.flags.custom_directory", "Flag images", FieldKind.TEXT),
+    Field("Overlays", "overlays.logo.enabled", "Show logo", FieldKind.CHECK),
+    Field("Overlays", "overlays.logo.path", "Logo file", FieldKind.FILE),
+    Field(
+        "Overlays",
+        "overlays.logo.position",
+        "Logo position",
+        FieldKind.CHOICE,
+        CORNERS,
+    ),
+    Field("Overlays", "overlays.logo.height", "Logo height (0-0.5)", FieldKind.NUMBER),
+    Field("Overlays", "overlays.logo.opacity", "Logo opacity (0-1)", FieldKind.NUMBER),
 )
 
 
@@ -231,6 +243,11 @@ def _errors_by_field(error: ValidationError) -> dict[str, str]:
     for item in error.errors(include_input=False, include_url=False):
         location = ".".join(str(part) for part in item["loc"])
         message = item["msg"].removeprefix("Value error, ")
+        # A check on a whole section names its field at the start, as in "path: ...".
+        field, separator, rest = message.partition(": ")
+        named = f"{location}.{field}" if location else field
+        if separator and named in paths:
+            location, message = named, rest
         while location not in paths and "." in location:
             location = location.rsplit(".", 1)[0]
         if location not in paths:
