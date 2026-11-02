@@ -421,6 +421,35 @@ def test_scan_uses_the_values_on_the_form(qtbot: object) -> None:
     assert seen[0].camera.scan_subnets == ["10.5.0.0/24"]
 
 
+def test_logo_settings_are_on_the_form(qtbot: object, tmp_path: Path) -> None:
+    dialog = make_dialog(qtbot)
+    dialog.set_value("overlays.logo.enabled", True)
+    dialog.set_value("overlays.logo.path", "logos/club.png")
+    dialog.set_value("overlays.logo.height", "0.2")
+    dialog.accept_values()
+    logo = dialog.result_config.overlays.logo
+    assert (logo.enabled, logo.path, logo.height) == (True, "logos/club.png", 0.2)
+
+
+def test_enabled_logo_without_a_file_is_explained(qtbot: object) -> None:
+    dialog = make_dialog(qtbot)
+    dialog.set_value("overlays.logo.enabled", True)
+    dialog.accept_values()
+    assert "needs an image file" in dialog.error_for("overlays.logo.path")
+
+
+def test_browse_fills_in_the_logo_file(
+    qtbot: object, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dialog = make_dialog(qtbot)
+    monkeypatch.setattr(
+        "start_camera.gui.settings_dialog.QFileDialog.getOpenFileName",
+        lambda *_: ("/tmp/club.png", ""),
+    )
+    dialog._editors["overlays.logo.path"].choose()
+    assert dialog.values()["overlays.logo.path"] == "/tmp/club.png"
+
+
 def test_candidates_are_ordered_and_described() -> None:
     weak = Candidate("10.0.0.7", None, "CAMS3W", True, StreamStatus.NO_STREAM)
     assert order_candidates([OTHER, weak, CAMERA]) == [CAMERA, weak, OTHER]

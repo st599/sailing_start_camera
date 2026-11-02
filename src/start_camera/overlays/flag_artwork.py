@@ -349,11 +349,11 @@ def _find_image(directory: Path, name: str) -> Path | None:
     return None
 
 
-def _load_custom_flag(path: Path, height: int) -> Image | None:
-    """Return a custom flag's image at a given height, if it can be read."""
-    image = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
+def load_image(path: Path, height: int) -> Image | None:
+    """Return an image file as BGRA at a given height, if it can be read."""
+    image = cv2.imread(str(path), cv2.IMREAD_UNCHANGED) if path.is_file() else None
     if image is None:
-        logger.warning("Can't read the flag image %s", path)
+        logger.warning("Can't read the image %s", path)
         return None
     if image.ndim == 2:
         image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGRA)
@@ -376,7 +376,7 @@ def load_flag(name: str, height: int, directory: Path) -> Image:
         directory: The folder of custom flag images, which needn't exist.
     """
     path = _find_image(directory, name)
-    image = _load_custom_flag(path, height) if path is not None else None
+    image = load_image(path, height) if path is not None else None
     if image is None:
         image = draw_standard_flag(name, height)
     if image is None:

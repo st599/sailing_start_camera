@@ -43,6 +43,13 @@
       "scale": 1.0,
       "show_labels": true,
       "custom_directory": "custom_flags"
+    },
+    "logo": {
+      "enabled": false,
+      "path": "logos/club_logo.png",
+      "position": "bottom_left",
+      "height": 0.12,
+      "opacity": 1.0
     }
   },
   "start_line": {

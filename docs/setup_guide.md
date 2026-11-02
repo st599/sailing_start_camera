@@ -95,6 +95,8 @@ That's the system working. To start again, press **Abandon**.
   [the GUI guide](gui.md#settings-and-files) for making your own.
 - **Flags:** the international code flags are built in. Add others, such as class symbols, to a
   `custom_flags` folder, which is explained in [the flags guide](flags.md).
+- **Logo:** put the club's logo in a `logos` folder, ideally as a PNG with a transparent
+  background, then choose it under **File, Settings**, on the Overlays tab.
 - **Start line:** place it with the camera in its final position, and use a separate configuration file
   for each starting box. If the camera moves, the line has to be placed again.
 - **Camera delay:** with the camera in its final position, stop the window and run the

@@ -121,6 +121,9 @@ def _check_config(arguments: argparse.Namespace) -> None:
         logger.warning("YouTube is enabled, but the secrets have no youtube_stream_key")
     if secrets.control_password is None:
         logger.warning("There's no control_password, so the phone page will be off")
+    logo = config.overlays.logo
+    if logo.enabled and not Path(logo.path).is_file():
+        logger.warning("The logo file %s doesn't exist", logo.path)
     logger.info("%d start sequences configured", len(config.sequences.items))
 
 

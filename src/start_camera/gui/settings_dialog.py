@@ -30,7 +30,9 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QFormLayout,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -71,6 +73,7 @@ logger = logging.getLogger(__name__)
 ERROR_STYLE = "color: #c00000; font-weight: bold;"
 HOST_FIELD = "camera.host"
 MAC_FIELD = "camera.mac"
+IMAGE_FILTER = "Images (*.png *.jpg *.jpeg *.webp *.bmp);;All files (*)"
 
 #
 # FUNCTIONS
@@ -298,8 +301,34 @@ def _show_error(label: QLabel, message: str) -> None:
     label.setVisible(bool(message))
 
 
+class FileEditor(QWidget):
+    """A file's name, with a button to choose the file."""
+
+    def __init__(self) -> None:
+        """Build the editor."""
+        super().__init__()
+        self.text = QLineEdit()
+        browse = QPushButton("Browse...")
+        browse.setAutoDefault(False)
+        browse.clicked.connect(lambda _checked=False: self.choose())
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.text, stretch=1)
+        layout.addWidget(browse)
+
+    def choose(self) -> None:
+        """Choose an image file."""
+        name, _ = QFileDialog.getOpenFileName(
+            self, "Choose an image", self.text.text(), IMAGE_FILTER
+        )
+        if name:
+            self.text.setText(name)
+
+
 def _make_editor(field: Field) -> QWidget:
     """Return the widget for editing a field."""
+    if field.kind is FieldKind.FILE:
+        return FileEditor()
     if field.kind is FieldKind.CHECK:
         return QCheckBox()
     if field.kind is FieldKind.CHOICE:
@@ -315,6 +344,8 @@ def _read_editor(editor: QWidget) -> str | bool:
         return editor.isChecked()
     if isinstance(editor, QComboBox):
         return editor.currentText()
+    if isinstance(editor, FileEditor):
+        return editor.text.text()
     return editor.text()
 
 
@@ -324,5 +355,7 @@ def _write_editor(editor: QWidget, value: str | bool) -> None:
         editor.setChecked(bool(value))
     elif isinstance(editor, QComboBox):
         editor.setCurrentText(str(value))
+    elif isinstance(editor, FileEditor):
+        editor.text.setText(str(value))
     else:
         editor.setText(str(value))
