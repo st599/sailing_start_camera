@@ -49,6 +49,7 @@ The laptop and the phone have the same buttons. Use either one, as they always s
 | General recall | **General recall**, then confirm | First Substitute, and the class starts again |
 | Missing out the next class | **Next start**, then confirm | The countdown moves to the class after |
 | Abandoning | **Abandon**, then confirm | `ABANDONED`, and flag N. Press **Start now** to run all the sequences again |
+| Recording the start, for a later look | **Start recording**, once the stream is running | `RECORDING`. Press **Stop recording** when you've finished, then confirm |
 
 **Press these at the same moment as you make the real signal.** The screen follows the buttons, not
 your flags.
@@ -67,7 +68,8 @@ If a button doesn't seem to work, look at the message on the screen, which says 
 
 ## After racing
 
-Press **Stop streaming**, close the window, and shut the laptop down. If it asks about saving
+Press **Stop streaming**, close the window, and shut the laptop down. Stopping the stream also
+stops any recording. If it asks about saving
 changes, choose **Discard**, unless you've been told to change something.
 
 ## If something looks wrong

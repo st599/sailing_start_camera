@@ -140,6 +140,10 @@ Check these against the current Racing Rules of Sailing and your sailing instruc
 | `journal_path` | `race_journal.jsonl` | The record of race commands. A relative path starts from where `startcam` runs |
 | `page_port` | `8443` | Port of the [phone control page](command_line.md#phone-control-page) |
 
+### `recording`
+
+Recording the stream to files. See [Recording](recording.md) for the settings.
+
 ## Secrets
 
 Secrets never go in the configuration file; a `password` field there is an error. Put

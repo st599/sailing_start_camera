@@ -48,6 +48,7 @@ from start_camera.config import Config
 from start_camera.control import RaceControl
 from start_camera.overlays.countdown import RaceDisplay
 from start_camera.race_clock import RaceClockError
+from start_camera.recording import Recorder, RecordingError
 
 #
 #  GLOBAL VARIABLES
@@ -75,6 +76,7 @@ SIMPLE_COMMANDS = (
     "skip",
     "abandon",
 )
+RECORDING_COMMANDS = {"start_recording": "start", "stop_recording": "stop"}
 SECURITY_HEADERS = {
     "Cache-Control": "no-store",
     "Content-Security-Policy": (
@@ -95,6 +97,8 @@ body { margin: 0; padding: 12px; background: #fff; color: #000;
 #time { font-size: 44px; font-weight: 800; text-align: center; padding: 12px 4px;
   border: 4px solid #000; border-radius: 8px; overflow-wrap: anywhere; }
 #flags { min-height: 32px; text-align: center; font-weight: 700; margin: 8px 0; }
+#recording { text-align: center; font-weight: 800; color: #fff; background: #a00000;
+  border-radius: 8px; padding: 6px; }
 #message { min-height: 32px; text-align: center; font-weight: 700; color: #a00000; }
 #offline { display: none; background: #a00000; color: #fff; font-weight: 800;
   text-align: center; padding: 12px; border-radius: 8px; margin-bottom: 8px; }
@@ -120,6 +124,7 @@ input { width: 100%; font-size: 24px; padding: 16px; margin: 10px 0;
 <main id="panel" hidden>
   <div id="time" role="timer"></div>
   <div id="flags"></div>
+  <div id="recording" hidden>&#9679; RECORDING</div>
   <div id="message" role="status"></div>
   <div class="grid"><button data-command="start_now">Start now</button>
     <button data-command="skip" data-confirm="Skip the next start?">Next start</button>
@@ -132,6 +137,8 @@ input { width: 100%; font-size: 24px; padding: 16px; margin: 10px 0;
       data-confirm="General recall?">General recall</button>
     <button class="warn" data-command="abandon"
       data-confirm="Abandon the racing?">Abandon</button>
+    <button id="record" class="quiet" data-command="start_recording" hidden>
+      Start recording</button>
     <button class="quiet" id="logout" type="button">Log out</button>
   </div>
 </main>
@@ -175,6 +182,13 @@ function show(state) {
   const recall = flying ? "clear_individual_recall" : "individual_recall";
   $("recall").dataset.command = recall;
   $("recall").textContent = flying ? "Clear X" : "Individual recall";
+  const recording = state.recording;
+  $("record").hidden = recording === null;
+  $("recording").hidden = recording !== true;
+  $("record").dataset.command = recording ? "stop_recording" : "start_recording";
+  $("record").textContent = recording ? "Stop recording" : "Start recording";
+  if (recording) $("record").dataset.confirm = "Stop recording?";
+  else delete $("record").dataset.confirm;
 }
 
 async function refresh() {
@@ -356,9 +370,11 @@ class _PageState:
         control: RaceControl,
         sessions: _Sessions,
         clock: Callable[[], float],
+        recorder: Recorder | None = None,
     ) -> None:
         """Hold what the page shows and controls."""
         self.control = control
+        self._recorder = recorder
         self.sessions = sessions
         self._clock = clock
         self._delay_steps = config.control.delay_steps
@@ -372,6 +388,7 @@ class _PageState:
             "display": summary.display,
             "flags": list(summary.flags),
             "delay_steps": self._delay_steps,
+            "recording": self._recorder.is_recording if self._recorder else None,
         }
 
     def run_command(self, body: dict[str, Any]) -> None:
@@ -389,9 +406,11 @@ class _PageState:
                 self.control.shift(minutes)
             elif command in SIMPLE_COMMANDS:
                 getattr(self.control, command)()
+            elif command in RECORDING_COMMANDS and self._recorder is not None:
+                getattr(self._recorder, RECORDING_COMMANDS[command])()
             else:
                 raise _RequestError(400, "Unknown command")
-        except RaceClockError as error:
+        except (RaceClockError, RecordingError) as error:
             raise _RequestError(409, str(error)) from error
 
 
@@ -559,6 +578,7 @@ class ControlPage:
         address: str = "localhost",
         certificate_directory: Path = CERTIFICATE_DIRECTORY,
         clock: Callable[[], float] = time.time,
+        recorder: Recorder | None = None,
     ) -> None:
         """Open the page's port.
 
@@ -569,6 +589,7 @@ class ControlPage:
             address: The computer's address, to name in a new certificate.
             certificate_directory: Where the certificate is kept.
             clock: Provides the current time.
+            recorder: Controls recording, if the page may use it.
 
         Raises:
             ControlPageError: If the certificate can't be created or used.
@@ -580,7 +601,8 @@ class ControlPage:
             context.load_cert_chain(certificate, key)
         except ssl.SSLError as error:
             raise ControlPageError(f"Can't use the certificate: {error}") from error
-        state = _PageState(config, control, _Sessions(password, clock), clock)
+        sessions = _Sessions(password, clock)
+        state = _PageState(config, control, sessions, clock, recorder)
         address_and_port = ("", config.control.page_port)
         self._server = _QuietServer(address_and_port, _make_handler(state))
         # The handshake happens in each connection's own thread, so one slow phone

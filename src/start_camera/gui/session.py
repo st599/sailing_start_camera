@@ -42,6 +42,7 @@ from start_camera.ingest import Frame, FrameSource
 from start_camera.overlays.countdown import RaceDisplay, RaceSummary
 from start_camera.overlays.factory import build_compositor
 from start_camera.pipeline import Streaming, addresses_for_viewers
+from start_camera.recording import Recorder, RecordingError
 
 #
 # FUNCTIONS
@@ -126,6 +127,39 @@ class GuiSession:
     def viewer_addresses(self) -> dict[str, str]:
         """Return where viewers can watch."""
         return addresses_for_viewers(self.config)
+
+    @property
+    def is_recording(self) -> bool:
+        """Return whether the stream is being recorded."""
+        recorder = self._recorder()
+        return recorder is not None and recorder.is_recording
+
+    def recording_directory(self) -> str:
+        """Return where recordings go."""
+        recorder = self._recorder()
+        return str(recorder.directory) if recorder is not None else ""
+
+    def start_recording(self) -> None:
+        """Start recording.
+
+        Raises:
+            RecordingError: If the stream isn't running, or recording can't start.
+        """
+        recorder = self._recorder()
+        if recorder is None:
+            raise RecordingError("Start the stream before recording")
+        recorder.start()
+
+    def stop_recording(self) -> None:
+        """Stop recording."""
+        recorder = self._recorder()
+        if recorder is not None:
+            recorder.stop()
+
+    def _recorder(self) -> Recorder | None:
+        """Return what controls recording, while streaming."""
+        streaming = self._streaming
+        return getattr(streaming, "recorder", None) if streaming else None
 
     def start_stream(self) -> None:
         """Start the stream. This can take a while, so don't call it on the GUI thread.

@@ -101,5 +101,13 @@
     "delay_steps": [1, 5, 10, -1],
     "journal_path": "race_journal.jsonl",
     "page_port": 8443
+  },
+  "recording": {
+    "directory": "recordings",
+    "format": "mp4",
+    "segment_minutes": 60,
+    "delete_after_days": 14,
+    "start_with_stream": false,
+    "min_free_gb": 2.0
   }
 }

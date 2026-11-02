@@ -41,7 +41,7 @@ from typing import Any
 #
 # PROJECT IMPORTS
 #
-from start_camera.config import StreamConfig
+from start_camera.config import RecordingConfig, RecordingFormat, StreamConfig
 
 #
 #  GLOBAL VARIABLES
@@ -68,6 +68,8 @@ CACHE_DIRECTORY = Path.home() / ".cache" / "start_camera"
 STREAM_PATH = "start"
 DOWNLOAD_TIMEOUT_S = 60
 STABLE_AFTER_S = 30.0
+API_TIMEOUT_S = 5.0
+RECORDING_FORMATS = {RecordingFormat.MP4: "fmp4", RecordingFormat.MPEG_TS: "mpegts"}
 
 #
 # FUNCTIONS
@@ -75,7 +77,7 @@ STABLE_AFTER_S = 30.0
 
 
 class MediaServerError(Exception):
-    """MediaMTX could not be fetched."""
+    """MediaMTX could not be fetched or controlled."""
 
 
 @dataclass
@@ -179,16 +181,53 @@ def ensure_binary(cache_directory: Path = CACHE_DIRECTORY) -> Path:
     return binary
 
 
-def build_server_config(stream: StreamConfig) -> dict[str, Any]:
+def recording_settings(recording: RecordingConfig, record: bool) -> dict[str, Any]:
+    """Return the MediaMTX settings for recording.
+
+    Recordings copy the stream without encoding it again. The folder is made absolute,
+    as MediaMTX runs in a temporary folder that's deleted when it stops.
+    """
+    directory = Path(recording.directory).expanduser().resolve()
+    days = recording.delete_after_days
+    return {
+        "record": record,
+        # MediaMTX insists on the stream's name, and warns without the time zone.
+        "recordPath": str(directory / "%Y-%m-%d_%H-%M-%S%z_%path"),
+        "recordFormat": RECORDING_FORMATS[recording.format],
+        "recordPartDuration": "1s",
+        "recordSegmentDuration": f"{recording.segment_minutes}m",
+        "recordDeleteAfter": f"{days * 24}h" if days else "0s",
+    }
+
+
+def build_server_config(
+    stream: StreamConfig,
+    recording: RecordingConfig | None = None,
+    *,
+    api_port: int | None = None,
+    record: bool = False,
+) -> dict[str, Any]:
     """Return the MediaMTX configuration.
 
-    Anyone on the network can watch, but only this computer can publish, so other
-    devices can't replace the stream. Unused servers are off.
+    Anyone on the network can watch, but only this computer can publish or use the
+    control interface, so other devices can't replace the stream or control recording.
+    Unused servers are off.
+
+    Args:
+        stream: The output settings.
+        recording: The recording settings, if recording can be used.
+        api_port: The control interface's port, which listens on this computer only.
+        record: Whether to record.
     """
+    local_permissions = [{"action": "publish", "path": ""}]
+    if api_port is not None:
+        local_permissions.append({"action": "api", "path": ""})
+    path_settings = recording_settings(recording, record) if recording else {}
     return {
         "logLevel": "warn",
         "logDestinations": ["stdout"],
-        "api": False,
+        "api": api_port is not None,
+        "apiAddress": f"127.0.0.1:{api_port or 9997}",
         "metrics": False,
         "pprof": False,
         "playback": False,
@@ -215,10 +254,10 @@ def build_server_config(stream: StreamConfig) -> dict[str, Any]:
                 "user": "any",
                 "pass": "",
                 "ips": ["127.0.0.1"],
-                "permissions": [{"action": "publish", "path": ""}],
+                "permissions": local_permissions,
             },
         ],
-        "paths": {STREAM_PATH: {}},
+        "paths": {STREAM_PATH: path_settings},
     }
 
 
@@ -237,6 +276,13 @@ def viewer_urls(stream: StreamConfig, address: str) -> dict[str, str]:
     }
 
 
+def _free_local_port() -> int:
+    """Return a port that's free on this computer now."""
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+
+
 def _end_with_parent() -> list[str]:
     """Return a command prefix that ends a process if the application is killed.
 
@@ -250,24 +296,66 @@ def _end_with_parent() -> list[str]:
 class MediaServer:
     """Run MediaMTX, restarting it if it exits."""
 
-    def __init__(self, stream: StreamConfig, binary: Path) -> None:
+    def __init__(
+        self,
+        stream: StreamConfig,
+        binary: Path,
+        recording: RecordingConfig | None = None,
+    ) -> None:
         """Prepare the server.
 
         Args:
             stream: The output settings.
             binary: The MediaMTX program.
+            recording: The recording settings, if recording can be used.
         """
         self._stream = stream
         self._binary = binary
+        self._recording = recording
+        self._api_port = _free_local_port() if recording else None
+        self._record = False
         self._directory = tempfile.TemporaryDirectory(prefix="start_camera_")
         self._config_path = Path(self._directory.name) / "mediamtx.yml"
-        # JSON is valid YAML, so no YAML library is needed.
-        self._config_path.write_text(
-            json.dumps(build_server_config(stream)), encoding="utf-8"
-        )
+        self._write_config()
         self._process: subprocess.Popen[bytes] | None = None
         self._started_at = 0.0
         self._backoff = Backoff()
+
+    def _write_config(self) -> None:
+        """Write the configuration, which MediaMTX also reads if it restarts."""
+        settings = build_server_config(
+            self._stream, self._recording, api_port=self._api_port, record=self._record
+        )
+        temporary = self._config_path.with_suffix(".tmp")
+        # JSON is valid YAML, so no YAML library is needed.
+        temporary.write_text(json.dumps(settings), encoding="utf-8")
+        temporary.replace(self._config_path)
+
+    def set_recording(self, record: bool) -> None:
+        """Start or stop recording, without interrupting the stream.
+
+        Raises:
+            MediaServerError: If recording isn't set up, or the server refused.
+        """
+        if self._recording is None:
+            raise MediaServerError("Recording isn't set up")
+        self._record = record
+        self._write_config()
+        if self._process is None or self._process.poll() is not None:
+            # The server reads the new setting when it next starts.
+            return
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{self._api_port}/v3/config/paths/patch/{STREAM_PATH}",
+            data=json.dumps({"record": record}).encode(),
+            headers={"Content-Type": "application/json"},
+            method="PATCH",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=API_TIMEOUT_S):
+                pass
+        except (urllib.error.URLError, OSError) as error:
+            message = f"MediaMTX didn't change recording: {error}"
+            raise MediaServerError(message) from error
 
     def ensure_running(self) -> None:
         """Start the server if it isn't running and a retry is due."""

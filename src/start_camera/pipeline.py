@@ -36,6 +36,7 @@ from start_camera.discovery import primary_address
 from start_camera.media_server import MediaServer, ensure_binary, viewer_urls
 from start_camera.output import FrameProvider, Publisher
 from start_camera.overlays.factory import build_compositor
+from start_camera.recording import Recorder, RecordingError
 from start_camera.viewer import ViewerServer
 from start_camera.youtube import YouTubePush
 
@@ -64,7 +65,10 @@ def start_youtube(config: Config, secrets: Secrets) -> YouTubePush | None:
 
 
 def start_control_page(
-    config: Config, secrets: Secrets, control: RaceControl
+    config: Config,
+    secrets: Secrets,
+    control: RaceControl,
+    recorder: Recorder | None = None,
 ) -> ControlPage | None:
     """Start the phone control page if possible. The stream doesn't depend on it."""
     if secrets.control_password is None:
@@ -77,6 +81,7 @@ def start_control_page(
             control,
             secrets.control_password.get_secret_value(),
             address=address,
+            recorder=recorder,
         )
     except (ControlPageError, OSError) as error:
         logger.error("The phone control page is off: %s", error)
@@ -117,6 +122,7 @@ class Streaming:
         self._publisher: Publisher | None = None
         self._push: YouTubePush | None = None
         self._page: ControlPage | None = None
+        self.recorder: Recorder | None = None
 
     def start(self) -> None:
         """Start everything.
@@ -126,7 +132,10 @@ class Streaming:
             OSError: If a port can't be opened.
         """
         config = self._config
-        self._server = MediaServer(config.stream, ensure_binary())
+        self._server = MediaServer(config.stream, ensure_binary(), config.recording)
+        self.recorder = Recorder(
+            config.recording, self._server, config.stream.bitrate_kbps
+        )
         try:
             self._viewer = ViewerServer(config.stream)
         except OSError:
@@ -144,10 +153,25 @@ class Streaming:
         )
         self._publisher.start()
         self._push = start_youtube(config, self._secrets)
-        self._page = start_control_page(config, self._secrets, self._control)
+        self._page = start_control_page(
+            config, self._secrets, self._control, self.recorder
+        )
+        if config.recording.start_with_stream:
+            self._start_recording()
+
+    def _start_recording(self) -> None:
+        """Start recording, without letting a problem stop the stream."""
+        try:
+            self.recorder.start()
+        except RecordingError as error:
+            logger.error("Not recording: %s", error)
 
     def stop(self) -> None:
         """Stop everything that's running, in the reverse order."""
+        if self.recorder is not None:
+            # Stopping first finishes the current recording properly.
+            self.recorder.close()
+            self.recorder = None
         for name in ("_page", "_push", "_publisher", "_viewer", "_server"):
             part = getattr(self, name)
             if part is not None:
