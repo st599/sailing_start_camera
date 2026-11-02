@@ -70,6 +70,14 @@ If it doesn't work, give the broadcasts a playlist and embed that instead, or li
 - **Upload speed:** the stream needs about `stream.bitrate_kbps` plus 128 kbps, which is
   about 2.6 Mbps by default.
 
+## If it doesn't work
+
+| What you see | What to do |
+|---|---|
+| Studio says "Preparing stream" and nothing plays | Check that the stream key selected in Studio's **Stream** tab is the one in `secrets.json`. If you change `secrets.json`, restart the stream, as the key is read when it starts. Then refresh Studio |
+| The log never says "Sending video to YouTube" | Check the internet connection, and that `youtube_ingest_url` matches the stream URL in Studio |
+| Video arrives, but the broadcast doesn't start | Press **Go live** in Studio, or turn on **Enable Auto-start** |
+
 ## Protecting the stream key
 
 The key isn't written to the logs. It does appear in the `ffmpeg` command line, which other
