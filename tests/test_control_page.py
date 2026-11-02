@@ -60,6 +60,7 @@ from start_camera.control_page import (
     ControlPageError,
     ensure_certificate,
 )
+from start_camera.recording import RecordingError
 
 #
 #  GLOBAL VARIABLES
@@ -170,14 +171,43 @@ def site(tmp_path: Path, certificates: Path) -> Iterator[Site]:
     yield from run_site(tmp_path, certificates)
 
 
-def run_site(tmp_path: Path, certificates: Path, **options: object) -> Iterator[Site]:
+class FakeRecorder:
+    """Stand in for recording."""
+
+    def __init__(self) -> None:
+        """Start not recording."""
+        self.is_recording = False
+        self.refuse = False
+
+    def start(self) -> None:
+        """Start, or refuse as the test asks."""
+        if self.refuse:
+            raise RecordingError("Only 1.0 GB free")
+        self.is_recording = True
+
+    def stop(self) -> None:
+        """Stop."""
+        self.is_recording = False
+
+
+def run_site(
+    tmp_path: Path,
+    certificates: Path,
+    recorder: FakeRecorder | None = None,
+    **options: object,
+) -> Iterator[Site]:
     """Run the page for a configuration."""
     clock = Clock()
     config = make_config(**options)
     control = RaceControl(config.sequences, tmp_path / "journal.jsonl", clock)
     config.control.page_port = _free_port()
     page = ControlPage(
-        config, control, PASSWORD, certificate_directory=certificates, clock=clock
+        config,
+        control,
+        PASSWORD,
+        certificate_directory=certificates,
+        clock=clock,
+        recorder=recorder,
     )
     try:
         yield Site(page, control, clock)
@@ -540,3 +570,48 @@ def test_port_in_use_doesnt_stop_the_application(
     secrets = Secrets(control_password=PASSWORD)
     assert pipeline.start_control_page(config, secrets, control) is None
     assert "Address already in use" in caplog.text
+
+
+@pytest.fixture
+def recording_site(tmp_path: Path, certificates: Path) -> Iterator[Site]:
+    """Run the page with recording available."""
+    yield from run_site(tmp_path, certificates, FakeRecorder())
+
+
+def test_recording_isnt_offered_without_a_recorder(site: Site) -> None:
+    site.log_in()
+    assert site.request("GET", "/api/state")[1]["recording"] is None
+    assert site.command("start_recording")[0] == 400
+
+
+def test_recording_can_be_started_and_stopped(recording_site: Site) -> None:
+    recording_site.log_in()
+    assert recording_site.request("GET", "/api/state")[1]["recording"] is False
+    status, body = recording_site.command("start_recording")
+    assert status == 200
+    assert body["recording"] is True
+    assert recording_site.command("stop_recording")[1]["recording"] is False
+
+
+def test_recording_needs_a_login(recording_site: Site) -> None:
+    assert recording_site.command("start_recording")[0] == 401
+
+
+def test_refused_recording_explains_why(
+    tmp_path: Path, certificates: Path
+) -> None:
+    recorder = FakeRecorder()
+    recorder.refuse = True
+    runner = run_site(tmp_path, certificates, recorder)
+    site = next(runner)
+    site.log_in()
+    status, body = site.command("start_recording")
+    assert status == 409
+    assert "1.0 GB free" in body["error"]
+    runner.close()
+
+
+def test_page_has_a_record_button_that_asks_before_stopping() -> None:
+    assert 'data-command="start_recording"' in PAGE
+    assert "Stop recording?" in PAGE
+    assert "RECORDING" in PAGE

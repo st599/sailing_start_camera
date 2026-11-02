@@ -63,6 +63,7 @@ from start_camera.gui.settings_dialog import SettingsDialog
 from start_camera.gui.settings_model import ConfigDocument
 from start_camera.media_server import MediaServerError
 from start_camera.race_clock import INDIVIDUAL_RECALL_FLAG, RaceClockError
+from start_camera.recording import RecordingError
 
 #
 #  GLOBAL VARIABLES
@@ -80,6 +81,7 @@ STYLE = """
   border: 2px solid palette(text); border-radius: 6px; }
 #flags { font-weight: bold; }
 #message { color: #c00000; font-weight: bold; }
+#recording { color: #c00000; font-weight: bold; }
 QPushButton { font-weight: bold; }
 """
 
@@ -470,6 +472,8 @@ class MainWindow(QMainWindow):
     def _build_stream_controls(self) -> QVBoxLayout:
         """Return the stream's button and status."""
         self.stream_button = _button("Start streaming", self._toggle_stream)
+        self.record_button = _button("Start recording", self._toggle_recording)
+        self.recording_label = _label("recording")
         self.camera_label = _label("camera")
         self.stream_label = _label("stream")
         self.addresses_label = _label("addresses")
@@ -479,6 +483,8 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout()
         for widget in (
             self.stream_button,
+            self.record_button,
+            self.recording_label,
             self.camera_label,
             self.stream_label,
             self.addresses_label,
@@ -565,6 +571,30 @@ class MainWindow(QMainWindow):
                 for name, url in self._session.viewer_addresses().items()
             )
         self.addresses_label.setText(addresses)
+        self._show_recording_state(streaming)
+
+    def _show_recording_state(self, streaming: bool) -> None:
+        """Update the recording's button and status."""
+        recording = self._session.is_recording
+        self.record_button.setEnabled(streaming and not self._busy)
+        self.record_button.setText("Stop recording" if recording else "Start recording")
+        status = ""
+        if recording:
+            status = f"RECORDING to {self._session.recording_directory()}"
+        self.recording_label.setText(status)
+
+    def _toggle_recording(self) -> None:
+        """Start or stop recording, asking first before stopping."""
+        if self._session.is_recording:
+            if self._confirm("Stop recording?"):
+                self._session.stop_recording()
+        else:
+            self.message_label.setText("")
+            try:
+                self._session.start_recording()
+            except RecordingError as error:
+                self.message_label.setText(str(error))
+        self._show_stream_state()
 
     def _add_log_line(self, line: str) -> None:
         """Add a line to the log view."""

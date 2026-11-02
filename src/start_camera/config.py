@@ -321,6 +321,24 @@ class SequencesConfig(StrictModel):
         return value
 
 
+class RecordingFormat(StrEnum):
+    """The file format for recordings."""
+
+    MP4 = "mp4"
+    MPEG_TS = "mpegts"
+
+
+class RecordingConfig(StrictModel):
+    """Recording the stream, with its overlays, to files."""
+
+    directory: str = Field(default="recordings", min_length=1)
+    format: RecordingFormat = RecordingFormat.MP4
+    segment_minutes: int = Field(default=60, ge=1, le=1440)
+    delete_after_days: int = Field(default=14, ge=0, le=3650)
+    start_with_stream: bool = False
+    min_free_gb: float = Field(default=2.0, gt=0, le=10000)
+
+
 class ControlConfig(StrictModel):
     """Settings for the race controls."""
 
@@ -346,6 +364,7 @@ class Config(StrictModel):
     start_line: StartLineConfig = Field(default_factory=StartLineConfig)
     sequences: SequencesConfig = Field(default_factory=SequencesConfig)
     control: ControlConfig = Field(default_factory=ControlConfig)
+    recording: RecordingConfig = Field(default_factory=RecordingConfig)
 
     @model_validator(mode="after")
     def _control_page_has_its_own_port(self) -> Self:

@@ -61,6 +61,8 @@ BUTTONS = {
     "Abandon",
     "Start streaming",
     "Stop streaming",
+    "Start recording",
+    "Stop recording",
 }
 STATES = {"POSTPONED", "ABANDONED", "READY", "CAMERA SIGNAL LOST"}
 ALL_MARKDOWN = sorted(DOCS.glob("*.md")) + [ROOT / "README.md"]

@@ -42,6 +42,7 @@ from start_camera.config import (
 )
 from start_camera.ingest import Frame
 from start_camera.media_server import MediaServerError
+from start_camera.recording import RecordingError
 
 pytest.importorskip("PySide6")
 pytest.importorskip("pytestqt")
@@ -90,6 +91,27 @@ class FakeSource:
         return self.frame
 
 
+class FakeRecorder:
+    """Stand in for recording."""
+
+    directory = Path("/recordings")
+
+    def __init__(self) -> None:
+        """Start not recording."""
+        self.is_recording = False
+        self.refuse = False
+
+    def start(self) -> None:
+        """Start, or refuse as the test asks."""
+        if self.refuse:
+            raise RecordingError("Only 1.0 GB free")
+        self.is_recording = True
+
+    def stop(self) -> None:
+        """Stop."""
+        self.is_recording = False
+
+
 class FakeStreaming:
     """Stand in for the stream."""
 
@@ -100,6 +122,7 @@ class FakeStreaming:
     def __init__(self, *_: object) -> None:
         """Note the instance."""
         self.started = self.stopped = 0
+        self.recorder = FakeRecorder()
         FakeStreaming.instances.append(self)
 
     def start(self) -> None:
@@ -519,3 +542,45 @@ def test_every_button_fits_in_the_panel(
         assert left >= 0, button.text()
         assert left + button.width() <= viewport.width(), button.text()
         assert button.width() >= button.fontMetrics().horizontalAdvance(button.text())
+
+
+def test_record_button_needs_the_stream(harness: Harness) -> None:
+    harness.window.refresh()
+    assert not harness.button("Start recording").isEnabled()
+
+
+def test_recording_starts_and_shows_where(harness: Harness) -> None:
+    harness.press("Start streaming")
+    wait_for_stream(harness)
+    harness.press("Start recording")
+    assert harness.session.is_recording
+    assert "RECORDING to /recordings" in harness.window.recording_label.text()
+    harness.press("Stop recording")
+    assert harness.answers[-1] == "Stop recording?"
+    assert not harness.session.is_recording
+    assert harness.window.recording_label.text() == ""
+
+
+def test_stopping_recording_can_be_cancelled(harness: Harness) -> None:
+    harness.press("Start streaming")
+    wait_for_stream(harness)
+    harness.press("Start recording")
+    harness.answer_yes = False
+    harness.press("Stop recording")
+    assert harness.session.is_recording
+
+
+def test_refused_recording_explains_why(harness: Harness) -> None:
+    harness.press("Start streaming")
+    wait_for_stream(harness)
+    FakeStreaming.instances[0].recorder.refuse = True
+    harness.press("Start recording")
+    assert "1.0 GB free" in harness.window.message_label.text()
+    assert not harness.session.is_recording
+
+
+def test_recording_without_a_stream_is_refused(harness: Harness) -> None:
+    from start_camera.recording import RecordingError as Refused
+
+    with pytest.raises(Refused, match="Start the stream"):
+        harness.session.start_recording()

@@ -228,4 +228,5 @@ config.json
 secrets.json
 custom_flags/
 logos/
+recordings/
 race_journal.jsonl

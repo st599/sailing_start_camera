@@ -187,7 +187,7 @@ class Publisher:
         self._backoff = Backoff()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
-        self._last_behind_warning = 0.0
+        self._last_behind_warning: float | None = None
         self._recent_late_ticks: deque[float] = deque()
         self.frames_sent = 0
         self.late_ticks = 0
@@ -279,7 +279,9 @@ class Publisher:
             self._recent_late_ticks.popleft()
         if len(self._recent_late_ticks) < LATE_TICKS_TO_WARN:
             return
-        if now - self._last_behind_warning >= BEHIND_WARNING_INTERVAL_S:
+        # None until the first warning, as the clock starts near zero with the computer.
+        last = self._last_behind_warning
+        if last is None or now - last >= BEHIND_WARNING_INTERVAL_S:
             self._last_behind_warning = now
             logger.warning(
                 "Can't keep up with %d fps. Try a lower frame rate or resolution",

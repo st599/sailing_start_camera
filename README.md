@@ -11,6 +11,7 @@ A start line camera for sailing races.
 - [Command-line application](docs/command_line.md)
 - [GUI application](docs/gui.md)
 - [Streaming and viewing](docs/streaming.md)
+- [Recording](docs/recording.md)
 - [Race control](docs/race_control.md)
 - [Flags](docs/flags.md)
 - [Configuration](docs/configuration.md)
