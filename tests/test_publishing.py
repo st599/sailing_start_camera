@@ -252,6 +252,23 @@ def test_repeatedly_late_frames_do_warn(caplog: pytest.LogCaptureFixture) -> Non
     assert caplog.text.count("keep up") == 1
 
 
+def test_late_frames_while_the_encoder_starts_dont_warn(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    publisher = _publisher_for_warnings()
+
+    class Starting:
+        started_at = 1000.0
+
+    publisher._encoder = Starting()
+    for tick in range(20):
+        publisher._warn_behind(1000.0 + tick * 0.2)
+    assert "keep up" not in caplog.text
+    for tick in range(5):
+        publisher._warn_behind(1006.0 + tick)
+    assert "keep up" in caplog.text
+
+
 def test_falling_behind_warns_soon_after_the_computer_starts(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

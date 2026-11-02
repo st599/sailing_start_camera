@@ -56,6 +56,7 @@ WRITE_TIMEOUT_S = 5.0
 BEHIND_WARNING_INTERVAL_S = 30.0
 LATE_WINDOW_S = 10.0
 LATE_TICKS_TO_WARN = 5
+ENCODER_STARTUP_S = 5.0
 
 #
 # FUNCTIONS
@@ -271,9 +272,14 @@ class Publisher:
     def _warn_behind(self, now: float) -> None:
         """Warn, occasionally, if this computer keeps failing to reach the output rate.
 
-        An occasional late frame is normal, such as while the encoder loads, and warning
-        about those would teach people to ignore a real problem.
+        Late frames are normal while the encoder starts, and an occasional late frame is
+        normal afterwards. Warning about those would teach people to ignore a real
+        problem.
         """
+        encoder = self._encoder
+        if encoder is not None and now - encoder.started_at < ENCODER_STARTUP_S:
+            # Everything is still starting, including the server and the camera.
+            return
         self._recent_late_ticks.append(now)
         while now - self._recent_late_ticks[0] > LATE_WINDOW_S:
             self._recent_late_ticks.popleft()
