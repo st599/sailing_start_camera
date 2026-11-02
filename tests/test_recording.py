@@ -269,6 +269,15 @@ def test_warns_when_space_is_low(
     made.close()
 
 
+def test_low_space_warns_soon_after_the_computer_starts(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("start_camera.recording.time.monotonic", lambda: 5.0)
+    made, _ = recorder(tmp_path, Disk(4))
+    made._warn_if_low(int(4 * GIGABYTE))
+    assert "Space for recording is low" in caplog.text
+
+
 def test_folder_that_cant_be_made_is_explained(tmp_path: Path) -> None:
     blocker = tmp_path / "file"
     blocker.write_text("x", encoding="utf-8")

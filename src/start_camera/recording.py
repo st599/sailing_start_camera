@@ -96,7 +96,7 @@ class Recorder:
         self._minimum = config.min_free_gb * GIGABYTE
         self._lock = threading.Lock()
         self._recording = False
-        self._last_warning = 0.0
+        self._last_warning: float | None = None
         self._stop_watching = threading.Event()
         self._watcher: threading.Thread | None = None
 
@@ -192,7 +192,12 @@ class Recorder:
     def _warn_if_low(self, free: int) -> None:
         """Warn, occasionally, that the space for recording is running low."""
         now = time.monotonic()
-        recently = now - self._last_warning < LOW_SPACE_WARNING_INTERVAL_S
+        # None until the first warning: the clock starts near zero when the computer
+        # does, which would otherwise hide warnings soon after starting up.
+        recently = (
+            self._last_warning is not None
+            and now - self._last_warning < LOW_SPACE_WARNING_INTERVAL_S
+        )
         if free < self._minimum * LOW_SPACE_FACTOR and not recently:
             self._last_warning = now
             logger.warning(
