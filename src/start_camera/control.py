@@ -63,7 +63,9 @@ COMMANDS: dict[str, Callable[..., None]] = {
     "clear_individual_recall": RaceClock.clear_individual_recall,
     "skip": RaceClock.skip,
     "abandon": RaceClock.abandon,
+    "set_start": RaceClock.set_start,
 }
+LOCAL_SOURCE = "local"
 
 #
 # FUNCTIONS
@@ -150,43 +152,53 @@ class RaceControl:
         with self._lock:
             return self._race_clock.state(now)
 
-    def start_now(self) -> None:
+    def with_source(self, source: str) -> "SourcedControl":
+        """Return these controls, recording every command as coming from a source."""
+        return SourcedControl(self, source)
+
+    def start_now(self, source: str = LOCAL_SOURCE) -> None:
         """Bring the next start forward so its warning signal is now."""
-        self._run("start_now")
+        self._run("start_now", source)
 
-    def shift(self, minutes: float) -> None:
+    def shift(self, minutes: float, source: str = LOCAL_SOURCE) -> None:
         """Move every start that hasn't happened by a number of minutes."""
-        self._run("shift", minutes=minutes)
+        self._run("shift", source, minutes=minutes)
 
-    def postpone(self) -> None:
+    def set_start(
+        self, start: float, name: str | None = None, source: str = LOCAL_SOURCE
+    ) -> None:
+        """Set when a start is, in seconds since the epoch, by default the next one."""
+        self._run("set_start", source, start=start, name=name)
+
+    def postpone(self, source: str = LOCAL_SOURCE) -> None:
         """Hold all starts that haven't happened, and fly the postponement flag."""
-        self._run("postpone")
+        self._run("postpone", source)
 
-    def resume(self) -> None:
+    def resume(self, source: str = LOCAL_SOURCE) -> None:
         """End a postponement."""
-        self._run("resume")
+        self._run("resume", source)
 
-    def general_recall(self) -> None:
+    def general_recall(self, source: str = LOCAL_SOURCE) -> None:
         """Recall the most recent class, which then starts again."""
-        self._run("general_recall")
+        self._run("general_recall", source)
 
-    def individual_recall(self) -> None:
+    def individual_recall(self, source: str = LOCAL_SOURCE) -> None:
         """Fly the individual recall flag for the most recent class."""
-        self._run("individual_recall")
+        self._run("individual_recall", source)
 
-    def clear_individual_recall(self) -> None:
+    def clear_individual_recall(self, source: str = LOCAL_SOURCE) -> None:
         """Take down the individual recall flag."""
-        self._run("clear_individual_recall")
+        self._run("clear_individual_recall", source)
 
-    def skip(self) -> None:
+    def skip(self, source: str = LOCAL_SOURCE) -> None:
         """Remove the next start, moving on to the one after."""
-        self._run("skip")
+        self._run("skip", source)
 
-    def abandon(self) -> None:
+    def abandon(self, source: str = LOCAL_SOURCE) -> None:
         """Stop all starts and fly the abandonment flag."""
-        self._run("abandon")
+        self._run("abandon", source)
 
-    def _run(self, command: str, **arguments: float) -> None:
+    def _run(self, command: str, source: str, **arguments: object) -> None:
         """Carry out a command and record it, whether or not it was accepted.
 
         Raises:
@@ -197,11 +209,14 @@ class RaceControl:
             try:
                 _apply(self._race_clock, command, now, arguments)
             except RaceClockError as error:
-                logger.warning("Refused %s: %s", command, error)
-                self._write_command(command, now, arguments, accepted=False)
+                logger.warning("Refused %s from %s: %s", command, source, error)
+                self._write_command(command, source, now, arguments, accepted=False)
                 raise
-            logger.info("Race command: %s %s", command, arguments or "")
-            self._write_command(command, now, arguments, accepted=True)
+            logger.info(
+                "Race command: %s %s(from %s)",
+                command, f"{arguments} " if arguments else "", source,
+            )  # fmt: skip
+            self._write_command(command, source, now, arguments, accepted=True)
 
     def _replay(self, commands: list[dict[str, Any]]) -> None:
         """Bring the race clock up to date with today's commands."""
@@ -218,7 +233,13 @@ class RaceControl:
         logger.info("Resumed today's racing from %d commands", len(commands))
 
     def _write_command(
-        self, command: str, now: float, arguments: dict[str, float], *, accepted: bool
+        self,
+        command: str,
+        source: str,
+        now: float,
+        arguments: dict[str, object],
+        *,
+        accepted: bool,
     ) -> None:
         """Add a command to the journal.
 
@@ -239,6 +260,7 @@ class RaceControl:
                 "time": now,
                 "local_time": datetime.fromtimestamp(now).isoformat(timespec="seconds"),
                 "command": command,
+                "source": source,
                 "arguments": arguments,
                 "accepted": accepted,
             }
@@ -257,7 +279,7 @@ class RaceControl:
 
 
 def _apply(
-    race_clock: RaceClock, command: str, now: float, arguments: dict[str, float]
+    race_clock: RaceClock, command: str, now: float, arguments: dict[str, object]
 ) -> None:
     """Carry out a named command on a race clock."""
     function = COMMANDS[command]
@@ -265,3 +287,56 @@ def _apply(
         function(race_clock)
     else:
         function(race_clock, now, **arguments)
+
+
+class SourcedControl:
+    """Race controls that record every command as coming from one source."""
+
+    def __init__(self, control: RaceControl, source: str) -> None:
+        """Hold the controls and the source."""
+        self._control = control
+        self.source = source
+
+    def state(self, now: float) -> RaceState:
+        """Return the state of the start sequences at a moment."""
+        return self._control.state(now)
+
+    def start_now(self) -> None:
+        """Bring the next start forward so its warning signal is now."""
+        self._control.start_now(self.source)
+
+    def shift(self, minutes: float) -> None:
+        """Move every start that hasn't happened by a number of minutes."""
+        self._control.shift(minutes, self.source)
+
+    def set_start(self, start: float, name: str | None = None) -> None:
+        """Set when a start is, in seconds since the epoch."""
+        self._control.set_start(start, name, self.source)
+
+    def postpone(self) -> None:
+        """Hold all starts that haven't happened."""
+        self._control.postpone(self.source)
+
+    def resume(self) -> None:
+        """End a postponement."""
+        self._control.resume(self.source)
+
+    def general_recall(self) -> None:
+        """Recall the most recent class."""
+        self._control.general_recall(self.source)
+
+    def individual_recall(self) -> None:
+        """Fly the individual recall flag."""
+        self._control.individual_recall(self.source)
+
+    def clear_individual_recall(self) -> None:
+        """Take down the individual recall flag."""
+        self._control.clear_individual_recall(self.source)
+
+    def skip(self) -> None:
+        """Remove the next start."""
+        self._control.skip(self.source)
+
+    def abandon(self) -> None:
+        """Stop all starts."""
+        self._control.abandon(self.source)

@@ -24,7 +24,7 @@ import importlib.util
 import logging
 import subprocess
 import sys
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -34,7 +34,13 @@ import pytest
 # PROJECT IMPORTS
 #
 from start_camera import api
-from start_camera.api import CameraSystem, Phase, RaceClockError, SystemStatus
+from start_camera.api import (
+    CameraSystem,
+    ClockNotSynchronisedError,
+    Phase,
+    RaceClockError,
+    SystemStatus,
+)
 from start_camera.config import (
     Config,
     ConfigError,
@@ -123,10 +129,20 @@ def make_config(tmp_path: Path) -> Config:
     )
 
 
-def system(tmp_path: Path, now: list[float] | None = None) -> CameraSystem:
-    """Return a system on a settable clock."""
+def system(
+    tmp_path: Path,
+    now: list[float] | None = None,
+    synchronised: bool | None = True,
+    config: Config | None = None,
+) -> CameraSystem:
+    """Return a system on a settable clock, synchronised with NTP unless asked."""
     clock = now or [T0]
-    return CameraSystem(make_config(tmp_path), Secrets(), clock=lambda: clock[0])
+    return CameraSystem(
+        config or make_config(tmp_path),
+        Secrets(),
+        clock=lambda: clock[0],
+        clock_synchronised=lambda: synchronised,
+    )
 
 
 def test_stable_names_are_all_there() -> None:
@@ -259,3 +275,78 @@ def test_guide_lists_every_stable_name_and_method() -> None:
         assert f"{name}(" in guide, name
     for name in ("SystemStatus", "RaceClockError", "ConfigError", "RecordingError"):
         assert name in guide
+
+
+def test_countdown_reaches_zero_at_the_set_start(tmp_path: Path) -> None:
+    now = [T0]
+    start = datetime.fromtimestamp(T0 + 600, UTC)
+    with system(tmp_path, now) as running:
+        running.set_start(start, "Solo")
+        assert running.status().upcoming.start == T0 + 600
+        now[0] = T0 + 600 - 1 / 25
+        assert running.status().display == "Solo -00:01"
+        now[0] = T0 + 600
+        assert running.status().display == "Solo +00:00"
+
+
+def test_set_start_takes_seconds_since_the_epoch(tmp_path: Path) -> None:
+    with system(tmp_path) as running:
+        running.set_start(T0 + 600)
+        assert running.status().upcoming.start == T0 + 600
+
+
+def test_set_start_needs_a_time_zone(tmp_path: Path) -> None:
+    with system(tmp_path) as running, pytest.raises(ValueError, match="time zone"):
+        running.set_start(datetime.fromtimestamp(T0 + 600))
+
+
+def test_set_start_refuses_a_past_start(tmp_path: Path) -> None:
+    with system(tmp_path) as running, pytest.raises(RaceClockError, match="passed"):
+        running.set_start(T0 - 1)
+
+
+@pytest.mark.parametrize("synchronised", [False, None])
+def test_set_start_needs_ntp(tmp_path: Path, synchronised: bool | None) -> None:
+    with system(tmp_path, synchronised=synchronised) as running:
+        with pytest.raises(ClockNotSynchronisedError, match="NTP"):
+            running.set_start(T0 + 600)
+        assert running.status().upcoming is None
+
+
+def test_ntp_requirement_can_be_turned_off(tmp_path: Path) -> None:
+    config = make_config(tmp_path)
+    config.control.require_ntp = False
+    with system(tmp_path, synchronised=False, config=config) as running:
+        running.set_start(T0 + 600)
+        assert running.status().upcoming.start == T0 + 600
+
+
+def test_clock_difference_is_reported(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    sent = datetime.fromtimestamp(T0, UTC) + timedelta(seconds=2)
+    with system(tmp_path) as running, caplog.at_level(logging.WARNING):
+        running.set_start(T0 + 600, sent_at=sent)
+        status = running.clock_status()
+    assert status.time == T0
+    assert status.synchronised is True
+    assert status.last_difference == pytest.approx(-2)
+    assert "2.00 seconds behind" in caplog.text
+
+
+def test_small_clock_difference_isnt_a_warning(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    with system(tmp_path) as running, caplog.at_level(logging.WARNING):
+        running.set_start(T0 + 600, sent_at=T0 - 0.2)
+    assert "seconds" not in caplog.text
+
+
+def test_suite_commands_are_journalled_as_the_suites(tmp_path: Path) -> None:
+    with system(tmp_path) as running:
+        running.set_start(T0 + 600)
+        running.shift(1)
+    with system(tmp_path) as again:
+        assert again.status().upcoming.start == T0 + 660
+    journal = (tmp_path / "journal.jsonl").read_text("utf-8")
+    assert journal.count('"source": "suite"') == 2

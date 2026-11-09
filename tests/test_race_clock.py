@@ -590,3 +590,59 @@ def test_clock_jumping_forwards_counts_starts_as_having_happened() -> None:
 def test_state_is_the_same_each_time_it_is_asked() -> None:
     clock = manual("A", "B")
     assert clock.state(at(2)) == clock.state(at(2))
+
+
+def test_set_start_from_idle_schedules_the_rest() -> None:
+    clock = RaceClock(SequencesConfig(items=classes("A", "B")), T0)
+    clock.set_start(T0, at(10))
+    state = clock.state(T0)
+    assert state.upcoming.start == at(10)
+    assert clock.state(at(5)).flags == ("A",)
+    assert clock.state(at(10)).upcoming.start == at(15)
+
+
+def test_set_start_moves_a_named_class_and_those_after() -> None:
+    clock = manual("A", "B", "C")
+    clock.set_start(T0, at(20), "B")
+    assert clock.state(T0).upcoming.start == FIRST_START
+    assert clock.state(FIRST_START).upcoming.start == at(20)
+    assert clock.state(at(20)).upcoming.start == at(25)
+
+
+def test_set_start_after_a_class_has_started_names_the_next() -> None:
+    clock = manual("A", "B")
+    clock.set_start(at(6), at(12))
+    assert clock.state(at(6)).upcoming.name == "B"
+    assert clock.state(at(6)).upcoming.start == at(12)
+
+
+@pytest.mark.parametrize(
+    ("start", "name", "message"),
+    [
+        (at(1), None, "already passed"),
+        (at(2), None, "already passed"),
+        (at(20), "Z", "no start called Z"),
+        (at(20), "A", "A has already started"),
+    ],
+)
+def test_set_start_refusals(start: float, name: str | None, message: str) -> None:
+    clock = manual("A", "B")
+    with pytest.raises(RaceClockError, match=message):
+        clock.set_start(at(2) if name != "A" else at(6), start, name)
+
+
+def test_set_start_keeps_the_starts_in_order() -> None:
+    clock = manual("A", "B")
+    with pytest.raises(RaceClockError, match="before the start for A"):
+        clock.set_start(T0, FIRST_START, "B")
+    idle = RaceClock(SequencesConfig(items=classes("A", "B")), T0)
+    with pytest.raises(RaceClockError, match="Set the start for A first"):
+        idle.set_start(T0, at(10), "B")
+
+
+@pytest.mark.parametrize("command", ["postpone", "abandon"])
+def test_set_start_is_refused_when_not_running(command: str) -> None:
+    clock = manual("A")
+    getattr(clock, command)(T0)
+    with pytest.raises(RaceClockError):
+        clock.set_start(T0, at(10))

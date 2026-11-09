@@ -387,3 +387,37 @@ def test_overlays_show_the_controls_state(journal: Path) -> None:
     compositor = build_compositor(config, clock=clock, race_clock=control)
     overlay = compositor._overlays[1].overlay
     assert overlay._race_clock is control
+
+
+def test_set_start_is_journalled_with_its_source(journal: Path) -> None:
+    clock = Clock()
+    control = RaceControl(sequences("A", "B"), journal, clock)
+    control.with_source("suite").set_start(T0 + 10 * MINUTE, "A")
+    control.with_source("gui").shift(1)
+    commands = [record for record in records(journal) if record["record"] == "command"]
+    assert [(c["command"], c["source"]) for c in commands] == [
+        ("set_start", "suite"),
+        ("shift", "gui"),
+    ]
+    assert commands[0]["arguments"] == {"start": T0 + 10 * MINUTE, "name": "A"}
+
+
+def test_refused_set_start_is_journalled(journal: Path) -> None:
+    control = RaceControl(sequences("A"), journal, Clock())
+    with pytest.raises(RaceClockError, match="already passed"):
+        control.with_source("suite").set_start(T0 - 1)
+    (command,) = [r for r in records(journal) if r["record"] == "command"]
+    assert command["accepted"] is False
+    assert command["source"] == "suite"
+
+
+def test_set_start_survives_a_restart(journal: Path) -> None:
+    clock = Clock()
+    RaceControl(sequences("A", "B"), journal, clock).set_start(T0 + 600, "A")
+    again = RaceControl(sequences("A", "B"), journal, clock)
+    assert again.state(T0).upcoming.start == T0 + 600
+
+
+def test_commands_without_a_source_are_local(journal: Path) -> None:
+    started(journal, Clock(), "A")
+    assert records(journal)[-1]["source"] == "local"
