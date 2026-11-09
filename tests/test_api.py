@@ -24,6 +24,7 @@ import importlib.util
 import logging
 import subprocess
 import sys
+import threading
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -37,6 +38,8 @@ from start_camera import api
 from start_camera.api import (
     CameraSystem,
     ClockNotSynchronisedError,
+    Event,
+    EventKind,
     Phase,
     RaceClockError,
     SequencesError,
@@ -53,8 +56,10 @@ from start_camera.config import (
     load_config,
     save_config,
 )
+from start_camera.control_page import _PageState
 from start_camera.ingest import Frame
 from start_camera.sequence_model import build_timeline
+from start_camera.terminal_keys import KeyHandler
 
 #
 #  GLOBAL VARIABLES
@@ -468,3 +473,61 @@ def test_racing_with_saved_sequences_resumes_after_a_restart(tmp_path: Path) -> 
         assert again.status().upcoming.start == start
     journal = (tmp_path / "journal.jsonl").read_text("utf-8")
     assert '"record": "session"' in journal and '"source": "suite"' in journal
+
+
+def schedule_sources(running: CameraSystem) -> list[tuple[str, str]]:
+    """Return each schedule event's command and source."""
+    return [
+        (event.details["command"], event.details["source"])
+        for event in running.events_since()
+        if event.kind is EventKind.SCHEDULE
+    ]
+
+
+def test_events_reach_a_listener(tmp_path: Path) -> None:
+    received: list[Event] = []
+    got_start = threading.Event()
+
+    def listener(event: Event) -> None:
+        received.append(event)
+        if event.kind is EventKind.FLAG_UP:
+            got_start.set()
+
+    with system(tmp_path) as running:
+        unsubscribe = running.subscribe(listener)
+        running.start_now()
+        assert got_start.wait(5)
+        unsubscribe()
+    assert received[0].kind is EventKind.SCHEDULE
+    assert received[0].details["source"] == "suite"
+    assert received[1].details["flag"] == "S"
+
+
+def test_changes_at_the_start_box_name_their_source(tmp_path: Path) -> None:
+    with system(tmp_path) as running:
+        keys = KeyHandler(running.control.with_source("keys"), lambda: None)
+        keys.handle("s")
+        page = _PageState(running.config, running.control, None, lambda: T0)
+        page.run_command({"command": "shift", "minutes": 1})
+        running.set_sequences(DAY, force=True)
+        assert schedule_sources(running) == [("start_now", "keys"), ("shift", "phone")]
+        kinds = {event.kind: event for event in running.events_since()}
+        assert kinds[EventKind.SEQUENCES].details["source"] == "suite"
+
+
+def test_stream_events(tmp_path: Path) -> None:
+    with system(tmp_path) as running:
+        running.start_stream()
+        running._watcher.check()
+        running.stop_stream()
+        running._watcher.check()
+        kinds = [event.kind for event in running.events_since()]
+    assert kinds == [EventKind.STREAM_STARTED, EventKind.STREAM_STOPPED]
+
+
+def test_events_since_skips_those_already_seen(tmp_path: Path) -> None:
+    with system(tmp_path) as running:
+        running.start_now()
+        first = running.events_since()
+        running.shift(1)
+        assert running.events_since(first[-1].number)[0].number == len(first) + 1
