@@ -41,7 +41,7 @@ import pytest
 #
 # PROJECT IMPORTS
 #
-from start_camera import cli, media_server, pipeline
+from start_camera import api, cli, media_server, pipeline
 from start_camera.config import Config, Secrets, StreamConfig, save_config
 from start_camera.ingest import Frame
 from start_camera.media_server import (
@@ -519,6 +519,16 @@ class FakeFrameSource:
     def __exit__(self, *_: object) -> None:
         """Do nothing."""
 
+    def start(self) -> None:
+        """Do nothing."""
+
+    def stop(self) -> None:
+        """Do nothing."""
+
+    def latest(self) -> Frame:
+        """Return a frame."""
+        return FakeSource().latest()
+
 
 class FakeViewerLike:
     """Stand in for the publisher in the command-line test."""
@@ -558,7 +568,7 @@ def test_command_streams_until_terminated(
     save_config(Config(), path)
     monkeypatch.setattr("sys.argv", ["startcam", "--config", str(path)])
     monkeypatch.setattr(pipeline, "ensure_binary", lambda: Path("/bin/true"))
-    monkeypatch.setattr(cli, "FrameSource", FakeFrameSource)
+    monkeypatch.setattr(api, "FrameSource", FakeFrameSource)
     monkeypatch.setattr(pipeline, "Publisher", lambda *_, **__: FakeViewerLike())
     monkeypatch.setattr(pipeline, "ViewerServer", lambda stream: FakeViewer())
     monkeypatch.setattr(cli, "TerminalKeys", lambda *_: FakeKeys())

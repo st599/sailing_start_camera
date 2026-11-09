@@ -31,6 +31,7 @@ from types import FrameType
 # PROJECT IMPORTS
 #
 from start_camera import __version__
+from start_camera.api import CameraSystem
 from start_camera.clock_check import warn_if_clock_unsynchronised
 from start_camera.config import (
     Config,
@@ -40,17 +41,14 @@ from start_camera.config import (
     load_secrets,
     save_config,
 )
-from start_camera.control import RaceControl
 from start_camera.discovery import (
     DiscoveryError,
     discover,
     log_candidates,
     select_camera,
 )
-from start_camera.ingest import FrameSource
 from start_camera.logging_setup import configure_logging
 from start_camera.media_server import MediaServerError
-from start_camera.pipeline import Streaming
 from start_camera.terminal_keys import KeyHandler, TerminalKeys
 
 #
@@ -156,17 +154,15 @@ def _run_pipeline(
     config: Config, secrets: Secrets, stop: threading.Event
 ) -> None:
     """Run the stream and its controls until asked to stop."""
-    control = RaceControl(config.sequences, Path(config.control.journal_path))
-    keys = TerminalKeys(KeyHandler(control, stop.set), STDIN_FILE_DESCRIPTOR)
-    with FrameSource(config, secrets) as source:
-        streaming = Streaming(config, secrets, control, source)
+    system = CameraSystem(config, secrets)
+    keys = TerminalKeys(KeyHandler(system.control, stop.set), STDIN_FILE_DESCRIPTOR)
+    with system:
         try:
-            streaming.start()
+            system.start_stream()
             keys.start()
             stop.wait()
         finally:
             keys.stop()
-            streaming.stop()
 
 
 def _stream(arguments: argparse.Namespace) -> None:

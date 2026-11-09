@@ -62,8 +62,8 @@ def _run_window(arguments: argparse.Namespace) -> int:
         from PySide6.QtCore import QTimer
         from PySide6.QtWidgets import QApplication
 
+        from start_camera.api import CameraSystem
         from start_camera.gui.main_window import MainWindow
-        from start_camera.gui.session import GuiSession
         from start_camera.gui.settings_model import ConfigDocument
     except ImportError as error:
         logger.error(
@@ -78,7 +78,7 @@ def _run_window(arguments: argparse.Namespace) -> int:
     secrets = load_secrets(arguments.secrets)
     warn_if_clock_unsynchronised()
     application = QApplication([])
-    window = MainWindow(GuiSession(document.config, secrets), document)
+    window = MainWindow(CameraSystem(document.config, secrets), document)
 
     def request_quit(number: int, frame: FrameType | None) -> None:
         window.close()
