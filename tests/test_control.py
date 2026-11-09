@@ -421,3 +421,40 @@ def test_set_start_survives_a_restart(journal: Path) -> None:
 def test_commands_without_a_source_are_local(journal: Path) -> None:
     started(journal, Clock(), "A")
     assert records(journal)[-1]["source"] == "local"
+
+
+def test_new_sequences_start_afresh(journal: Path) -> None:
+    clock = Clock()
+    control = RaceControl(sequences("A"), journal, clock)
+    assert control.replace_sequences(sequences("B", "C"), "suite")
+    control.start_now()
+    assert control.state(T0).upcoming.name == "B"
+    session = [r for r in records(journal) if r["record"] == "session"]
+    assert session[0]["source"] == "suite"
+    again = RaceControl(sequences("B", "C"), journal, clock)
+    assert again.state(T0).upcoming.start == T0 + 5 * MINUTE
+
+
+def test_same_sequences_are_kept(journal: Path) -> None:
+    control = started(journal, Clock(), "A")
+    assert not control.replace_sequences(sequences("A"))
+    assert control.state(T0).phase is Phase.IN_SEQUENCE
+
+
+@pytest.mark.parametrize("command", ["start_now", "postpone"])
+def test_sequences_cant_change_while_under_way(journal: Path, command: str) -> None:
+    control = RaceControl(sequences("A"), journal, Clock())
+    control.start_now()
+    if command == "postpone":
+        control.postpone()
+    with pytest.raises(RaceClockError, match="can't change now"):
+        control.replace_sequences(sequences("B"))
+    assert control.replace_sequences(sequences("B"), force=True)
+    assert control.state(T0).phase is Phase.IDLE
+
+
+def test_sequences_can_change_after_the_last_start(journal: Path) -> None:
+    clock = Clock()
+    control = started(journal, clock, "A")
+    clock.now += 6 * MINUTE
+    assert control.replace_sequences(sequences("B"))

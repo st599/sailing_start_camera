@@ -5,7 +5,7 @@
 #  Sailing Start Camera
 #
 #  Filename: sequence_model.py
-#  Description: The timeline and checks for the sequence editor.
+#  Description: The timeline and checks for start sequences.
 #  Date: 2026-11-01
 #  Author: Simon st599
 #  Copyright: Simon st599 MMXXVI
@@ -14,7 +14,7 @@
 #
 #########################################################
 
-"""The timeline and checks for the sequence editor, free of the GUI library."""
+"""The timeline and checks for start sequences, used by the GUI and the suite."""
 
 #
 # SYSTEM IMPORTS

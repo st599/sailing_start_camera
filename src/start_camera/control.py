@@ -43,7 +43,7 @@ from typing import Any
 # PROJECT IMPORTS
 #
 from start_camera.config import SequencesConfig
-from start_camera.race_clock import RaceClock, RaceClockError, RaceState
+from start_camera.race_clock import Phase, RaceClock, RaceClockError, RaceState
 
 #
 #  GLOBAL VARIABLES
@@ -66,6 +66,7 @@ COMMANDS: dict[str, Callable[..., None]] = {
     "set_start": RaceClock.set_start,
 }
 LOCAL_SOURCE = "local"
+UNDER_WAY = (Phase.IN_SEQUENCE, Phase.POSTPONED)
 
 #
 # FUNCTIONS
@@ -151,6 +152,47 @@ class RaceControl:
         """Return the state of the start sequences at a moment."""
         with self._lock:
             return self._race_clock.state(now)
+
+    def replace_sequences(
+        self,
+        config: SequencesConfig,
+        source: str = LOCAL_SOURCE,
+        *,
+        force: bool = False,
+    ) -> bool:
+        """Use new sequences from now on, starting the day's racing afresh.
+
+        The race journal starts a new session, so only commands from now on are
+        replayed after a restart.
+
+        Args:
+            config: The new sequences.
+            source: Where the change came from, for the journal.
+            force: Replace them even while a sequence is under way.
+
+        Returns:
+            False if they're the same as the sequences already in use, which are
+            then kept as they are.
+
+        Raises:
+            RaceClockError: If a sequence is under way and force isn't set.
+        """
+        with self._lock:
+            sequences_hash = _sequences_hash(config)
+            if sequences_hash == self._sequences_hash:
+                return False
+            now = self._clock()
+            phase = self._race_clock.state(now).phase
+            if phase in UNDER_WAY and not force:
+                raise RaceClockError(
+                    f"The racing is {phase.value}, so the sequences can't change now"
+                )
+            self._race_clock = RaceClock(config, now)
+            self._sequences_hash = sequences_hash
+            self._session_written = False
+            logger.info("New sequences from %s: %d starts", source, len(config.items))
+            self._write_records([self._session_record(now, source)])
+            return True
 
     def with_source(self, source: str) -> "SourcedControl":
         """Return these controls, recording every command as coming from a source."""
@@ -247,13 +289,7 @@ class RaceControl:
         """
         records = []
         if not self._session_written:
-            records.append(
-                {
-                    "record": SESSION_RECORD,
-                    "date": datetime.fromtimestamp(now).date().isoformat(),
-                    "sequences": self._sequences_hash,
-                }
-            )
+            records.append(self._session_record(now))
         records.append(
             {
                 "record": COMMAND_RECORD,
@@ -265,6 +301,26 @@ class RaceControl:
                 "accepted": accepted,
             }
         )
+        self._write_records(records)
+
+    def _session_record(
+        self, now: float, source: str | None = None
+    ) -> dict[str, object]:
+        """Return the record that begins a session of the journal."""
+        record: dict[str, object] = {
+            "record": SESSION_RECORD,
+            "date": datetime.fromtimestamp(now).date().isoformat(),
+            "sequences": self._sequences_hash,
+        }
+        if source is not None:
+            record["source"] = source
+        return record
+
+    def _write_records(self, records: list[dict[str, object]]) -> None:
+        """Add records to the journal.
+
+        A failure is only logged, because the journal must never stop race control.
+        """
         text = "".join(json.dumps(record) + "\n" for record in records)
         try:
             with self._journal_path.open("a", encoding="utf-8") as file:

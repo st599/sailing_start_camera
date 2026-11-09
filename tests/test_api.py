@@ -39,6 +39,7 @@ from start_camera.api import (
     ClockNotSynchronisedError,
     Phase,
     RaceClockError,
+    SequencesError,
     SystemStatus,
 )
 from start_camera.config import (
@@ -49,9 +50,11 @@ from start_camera.config import (
     SequenceConfig,
     SequencesConfig,
     StreamConfig,
+    load_config,
     save_config,
 )
 from start_camera.ingest import Frame
+from start_camera.sequence_model import build_timeline
 
 #
 #  GLOBAL VARIABLES
@@ -109,6 +112,10 @@ class FakeStreaming:
     def stop(self) -> None:
         """Note the call."""
         self.stopped += 1
+
+    def use_sequences(self, sequences: SequencesConfig) -> None:
+        """Note the sequences."""
+        self.sequences = sequences
 
 
 @pytest.fixture(autouse=True)
@@ -350,3 +357,114 @@ def test_suite_commands_are_journalled_as_the_suites(tmp_path: Path) -> None:
         assert again.status().upcoming.start == T0 + 660
     journal = (tmp_path / "journal.jsonl").read_text("utf-8")
     assert journal.count('"source": "suite"') == 2
+
+
+DAY = {
+    "items": [
+        {"name": "Lasers", "class_flag": "L"},
+        {"name": "Toppers", "class_flag": "T", "preparatory_flag": "U"},
+    ]
+}
+
+
+def test_sequences_from_the_suite_run_as_the_timeline_shows(tmp_path: Path) -> None:
+    now = [T0]
+    with system(tmp_path, now) as running:
+        assert running.set_sequences(DAY) == []
+        running.start_now()
+        first_start = running.status().upcoming.start
+        rows = build_timeline(running.config.sequences)
+        for moment in sorted({row.seconds for row in rows}):
+            flying: set[str] = set()
+            for row in rows:
+                if row.seconds <= moment:
+                    (flying.add if row.up else flying.discard)(row.flag)
+            now[0] = first_start + moment
+            assert set(running.status().flags) == flying, moment
+
+
+def test_new_sequences_change_the_video_straight_away(tmp_path: Path) -> None:
+    with system(tmp_path) as running:
+        running.start_stream()
+        running.set_sequences(SequencesConfig(items=[SequenceConfig(**DAY["items"][0])]))
+        running.start_now()
+        assert running.status().display == "Lasers -05:00"
+        assert running.summary().flags == ("L",)
+        assert FakeStreaming.instances[0].sequences.items[0].name == "Lasers"
+        assert FakeStreaming.instances[0].started == 1
+
+
+def test_invalid_sequences_are_refused_with_each_problem(tmp_path: Path) -> None:
+    bad = {"items": [{"name": "", "class_flag": "L", "minutes_after_previous": 0}]}
+    with system(tmp_path) as running:
+        with pytest.raises(SequencesError) as caught:
+            running.set_sequences(bad)
+        assert len(caught.value.problems) == 2
+        assert "items.0.name" in str(caught.value)
+        assert "items.0.minutes_after_previous" in str(caught.value)
+        assert running.config.sequences.items[0].name == "Solo"
+
+
+def test_impossible_flags_are_refused(tmp_path: Path) -> None:
+    events = [{"minutes_before_start": 1, "flag": "P", "action": "down"}]
+    bad = {"items": [{"name": "A", "class_flag": "A", "events": events}]}
+    with system(tmp_path) as running, pytest.raises(
+        SequencesError, match="P comes down without having gone up"
+    ):
+        running.set_sequences(bad)
+
+
+def test_warnings_are_returned(tmp_path: Path) -> None:
+    day = {"items": [dict(item, minutes_after_previous=2) for item in DAY["items"]]}
+    with system(tmp_path) as running:
+        warnings = running.set_sequences(day)
+    assert warnings == [
+        "Toppers's sequence begins before Lasers starts, so their flags overlap"
+    ]
+
+
+def test_sequences_cant_change_while_one_is_under_way(tmp_path: Path) -> None:
+    with system(tmp_path) as running:
+        running.start_now()
+        with pytest.raises(RaceClockError, match="in sequence"):
+            running.set_sequences(DAY)
+        assert running.status().upcoming.name == "Solo"
+        running.set_sequences(DAY, force=True)
+        assert running.status().phase is Phase.IDLE
+        assert running.status().upcoming is None
+
+
+def test_sending_the_same_sequences_changes_nothing(tmp_path: Path) -> None:
+    with system(tmp_path) as running:
+        running.set_sequences(DAY)
+        running.start_now()
+        running.set_sequences(DAY)
+        assert running.status().phase is Phase.IN_SEQUENCE
+
+
+def test_sequences_can_be_saved(tmp_path: Path) -> None:
+    path = tmp_path / "config.json"
+    save_config(make_config(tmp_path), path)
+    with CameraSystem.from_files(path) as running:
+        running.set_sequences(DAY, save=True)
+    assert load_config(path).sequences.items[1].name == "Toppers"
+
+
+def test_saving_needs_a_file(tmp_path: Path) -> None:
+    with system(tmp_path) as running:
+        with pytest.raises(ConfigError, match="no configuration file"):
+            running.set_sequences(DAY, save=True)
+        assert running.config.sequences.items[0].name == "Lasers"
+
+
+def test_racing_with_saved_sequences_resumes_after_a_restart(tmp_path: Path) -> None:
+    path = tmp_path / "config.json"
+    save_config(make_config(tmp_path), path)
+    with CameraSystem.from_files(path) as running:
+        running.set_sequences(DAY, save=True)
+        running.start_now()
+        start = running.status().upcoming.start
+    with CameraSystem.from_files(path) as again:
+        assert again.status().upcoming.start == start
+    journal = (tmp_path / "journal.jsonl").read_text("utf-8")
+    assert '"record": "session"' in journal and '"source": "suite"' in journal

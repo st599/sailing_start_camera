@@ -25,14 +25,19 @@ Both applications use this, so that they can't drift apart.
 
 import logging
 import socket
+from collections.abc import Callable
+
+import numpy as np
+from numpy.typing import NDArray
 
 #
 # PROJECT IMPORTS
 #
-from start_camera.config import Config, Secrets
+from start_camera.config import Config, Secrets, SequencesConfig
 from start_camera.control import RaceControl
 from start_camera.control_page import ControlPage, ControlPageError
 from start_camera.discovery import primary_address
+from start_camera.ingest import Frame
 from start_camera.media_server import MediaServer, ensure_binary, viewer_urls
 from start_camera.output import FrameProvider, Publisher
 from start_camera.overlays.factory import build_compositor
@@ -117,6 +122,7 @@ class Streaming:
         self._secrets = secrets
         self._control = control
         self._source = source
+        self._render: Callable[[Frame], NDArray[np.uint8]] | None = None
         self._server: MediaServer | None = None
         self._viewer: ViewerServer | None = None
         self._publisher: Publisher | None = None
@@ -147,9 +153,9 @@ class Streaming:
             "If the address changes, http://%s.local:%d/ may still work",
             socket.gethostname(), config.stream.viewer_port,
         )  # fmt: skip
-        render = build_compositor(config, race_clock=self._control).render
+        self._render = build_compositor(config, race_clock=self._control).render
         self._publisher = Publisher(
-            self._source, self._server, config.stream, render=render
+            self._source, self._server, config.stream, render=self._draw
         )
         self._publisher.start()
         self._push = start_youtube(config, self._secrets)
@@ -158,6 +164,19 @@ class Streaming:
         )
         if config.recording.start_with_stream:
             self._start_recording()
+
+    def use_sequences(self, sequences: SequencesConfig) -> None:
+        """Draw the overlays for new sequences from the next frame on."""
+        self._config = self._config.model_copy(update={"sequences": sequences})
+        if self._render is not None:
+            self._render = build_compositor(
+                self._config, race_clock=self._control
+            ).render
+
+    def _draw(self, frame: Frame) -> NDArray[np.uint8]:
+        """Return a frame with the current overlays."""
+        render = self._render
+        return frame.image if render is None else render(frame)
 
     def _start_recording(self) -> None:
         """Start recording, without letting a problem stop the stream."""

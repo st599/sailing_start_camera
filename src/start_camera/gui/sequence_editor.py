@@ -62,13 +62,13 @@ from start_camera.config import (
     SequencesConfig,
     default_flag_events,
 )
-from start_camera.gui.sequence_model import build_timeline, check_sequences
 from start_camera.race_templates import (
     USER_DIRECTORY,
     TemplateLibrary,
     load_library,
     save_user_template,
 )
+from start_camera.sequence_model import build_timeline, check_sequences
 
 #
 #  GLOBAL VARIABLES

@@ -88,7 +88,8 @@ having happened.
 
 The journal only applies on the day it was written and with the same `sequences`
 configuration. If either has changed, racing starts afresh, and earlier records stay in the
-file. Change `sequences` only between days, or expect any commands so far to be forgotten.
+file. Change `sequences` only between days, or expect any commands so far to be forgotten. The same
+goes for sequences sent by a race control suite.
 
 If the journal can't be written, an error is logged and the command still takes effect, but it
 wouldn't survive a restart.

@@ -44,7 +44,6 @@ from start_camera.config import (
     StreamConfig,
     load_config,
 )
-from start_camera.gui.sequence_model import build_timeline, check_sequences
 from start_camera.gui.settings_model import ConfigDocument
 from start_camera.ingest import Frame
 from start_camera.overlays.compositor import OverlayContext
@@ -52,6 +51,7 @@ from start_camera.overlays.flag_artwork import load_flag
 from start_camera.overlays.flags import FlagsOverlay
 from start_camera.race_clock import Phase, RaceClock
 from start_camera.race_templates import load_library, save_user_template
+from start_camera.sequence_model import build_timeline, check_sequences
 
 pytest.importorskip("PySide6")
 pytest.importorskip("pytestqt")
