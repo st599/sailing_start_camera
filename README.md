@@ -5,6 +5,7 @@ A start line camera for sailing races.
 
 - **Running a race?** Use the [race-day guide](docs/race_day_guide.md).
 - **Setting the system up?** Follow the [setup guide](docs/setup_guide.md).
+- **Connecting a race control suite?** Use the [guide for race control suites](docs/suite_guide.md).
 
 ## Reference
 

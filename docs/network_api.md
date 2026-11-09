@@ -1,5 +1,7 @@
 # Network interface
 
+To get started, see the [guide for race control suites](suite_guide.md).
+
 A race control suite written in any language can control the camera system over the network.
 The interface offers what the [Python interface](python_api.md) does, as JSON over HTTPS, and
 streams events as Server-Sent Events.

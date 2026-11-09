@@ -1,5 +1,7 @@
 # Python interface
 
+To get started, see the [guide for race control suites](suite_guide.md).
+
 A race control suite can run the camera system inside its own Python program, using
 `start_camera.api`. Only the names in `start_camera.api` are promised to stay stable; the rest
 of the package may change between versions.
