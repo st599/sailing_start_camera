@@ -345,6 +345,7 @@ class ControlConfig(StrictModel):
     delay_steps: list[float] = Field(default_factory=lambda: [1.0, 5.0, 10.0, -1.0])
     journal_path: str = Field(default="race_journal.jsonl", min_length=1)
     page_port: Port = 8443
+    require_ntp: bool = True
 
     @field_validator("delay_steps")
     @classmethod

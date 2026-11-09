@@ -155,7 +155,8 @@ def _run_pipeline(
 ) -> None:
     """Run the stream and its controls until asked to stop."""
     system = CameraSystem(config, secrets)
-    keys = TerminalKeys(KeyHandler(system.control, stop.set), STDIN_FILE_DESCRIPTOR)
+    handler = KeyHandler(system.control.with_source("keys"), stop.set)
+    keys = TerminalKeys(handler, STDIN_FILE_DESCRIPTOR)
     with system:
         try:
             system.start_stream()

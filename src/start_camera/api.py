@@ -28,10 +28,12 @@ thread, but they use the same camera frames, overlays and race controls, so they
 # SYSTEM IMPORTS
 #
 
+import logging
 import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from types import TracebackType
 from typing import Protocol, Self
@@ -42,6 +44,7 @@ from numpy.typing import NDArray
 #
 # PROJECT IMPORTS
 #
+from start_camera.clock_check import clock_is_synchronised
 from start_camera.config import (
     Config,
     ConfigError,
@@ -49,7 +52,7 @@ from start_camera.config import (
     load_config,
     load_secrets,
 )
-from start_camera.control import RaceControl
+from start_camera.control import RaceControl, SourcedControl
 from start_camera.ingest import Frame, FrameSource
 from start_camera.media_server import MediaServerError
 from start_camera.overlays.countdown import RaceDisplay, RaceSummary
@@ -62,8 +65,15 @@ from start_camera.recording import Recorder, RecordingError
 #  GLOBAL VARIABLES
 #
 
+logger = logging.getLogger(__name__)
+
+SUITE_SOURCE = "suite"
+MAX_CLOCK_DIFFERENCE_S = 0.5
+
 __all__ = [
     "CameraSystem",
+    "ClockNotSynchronisedError",
+    "ClockStatus",
     "Config",
     "ConfigError",
     "MediaServerError",
@@ -78,6 +88,23 @@ __all__ = [
 #
 # FUNCTIONS
 #
+
+
+class ClockNotSynchronisedError(RaceClockError):
+    """A start time can't be accepted, as this computer's clock may be wrong."""
+
+
+@dataclass(frozen=True)
+class ClockStatus:
+    """This computer's clock, for checking it against the race control suite's.
+
+    last_difference is how far this clock was from the suite's when a command last said
+    when it was sent, in seconds; positive means this clock was ahead.
+    """
+
+    time: float
+    synchronised: bool | None
+    last_difference: float | None
 
 
 @dataclass(frozen=True)
@@ -97,6 +124,19 @@ class SystemStatus:
     camera_live: bool
     streaming: bool
     recording: bool
+
+
+def _seconds(moment: datetime | float) -> float:
+    """Return a moment in seconds since the epoch.
+
+    Raises:
+        ValueError: If a datetime has no time zone, which would leave it ambiguous.
+    """
+    if isinstance(moment, datetime):
+        if moment.tzinfo is None:
+            raise ValueError("A start time needs a time zone")
+        return moment.timestamp()
+    return float(moment)
 
 
 class Source(Protocol):
@@ -130,6 +170,7 @@ class CameraSystem:
         make_source: Callable[[Config, Secrets], Source] | None = None,
         make_streaming: Callable[..., Streaming] | None = None,
         clock: Callable[[], float] = time.time,
+        clock_synchronised: Callable[[], bool | None] = clock_is_synchronised,
     ) -> None:
         """Prepare everything, without starting it.
 
@@ -139,6 +180,7 @@ class CameraSystem:
             make_source: Makes what reads the camera. For testing.
             make_streaming: Makes what publishes the stream. For testing.
             clock: Provides the current time. For testing.
+            clock_synchronised: Says whether NTP has set the clock. For testing.
         """
         self.config = config
         self.control = RaceControl(
@@ -152,6 +194,8 @@ class CameraSystem:
         self._display = RaceDisplay(config, self.control)
         self._streaming: Streaming | None = None
         self._stream_lock = threading.Lock()
+        self._clock_synchronised = clock_synchronised
+        self._last_difference: float | None = None
 
     @classmethod
     def from_files(
@@ -202,39 +246,103 @@ class CameraSystem:
             RaceClockError: If this can't be done now. The same goes for the other
                 race commands.
         """
-        self.control.start_now()
+        self._suite.start_now()
+
+    def set_start(
+        self,
+        start: datetime | float,
+        name: str | None = None,
+        *,
+        sent_at: datetime | float | None = None,
+    ) -> None:
+        """Set exactly when a start is, with the starts after it following.
+
+        This is how a race control suite in charge of timing tells the camera when its
+        start is, so a network delay can't move it. This computer's clock must be
+        synchronised using NTP, or the countdown wouldn't match the suite's signals.
+
+        Args:
+            start: The start time: a datetime with a time zone, or seconds since the
+                epoch.
+            name: The class whose start it is. Defaults to the next start.
+            sent_at: When the suite sent this, by its own clock, to check the two
+                clocks agree.
+
+        Raises:
+            ClockNotSynchronisedError: If this computer's clock may be wrong.
+            RaceClockError: If the start has already passed, the class doesn't exist
+                or has started, or racing is postponed or abandoned.
+            ValueError: If a datetime has no time zone.
+        """
+        when = _seconds(start)
+        self._require_synchronised_clock()
+        if sent_at is not None:
+            self._compare_clocks(_seconds(sent_at))
+        self._suite.set_start(when, name)
+
+    def clock_status(self) -> ClockStatus:
+        """Return this computer's clock, and whether it's synchronised."""
+        return ClockStatus(
+            self._clock(), self._clock_synchronised(), self._last_difference
+        )
 
     def shift(self, minutes: float) -> None:
         """Move every start that hasn't happened by a number of minutes."""
-        self.control.shift(minutes)
+        self._suite.shift(minutes)
 
     def postpone(self) -> None:
         """Hold the starts that haven't happened, and fly the postponement flag."""
-        self.control.postpone()
+        self._suite.postpone()
 
     def resume(self) -> None:
         """End a postponement. The next warning signal is one minute later."""
-        self.control.resume()
+        self._suite.resume()
 
     def general_recall(self) -> None:
         """Recall the most recent class, which then starts again."""
-        self.control.general_recall()
+        self._suite.general_recall()
 
     def individual_recall(self) -> None:
         """Fly the individual recall flag for the most recent class."""
-        self.control.individual_recall()
+        self._suite.individual_recall()
 
     def clear_individual_recall(self) -> None:
         """Take down the individual recall flag."""
-        self.control.clear_individual_recall()
+        self._suite.clear_individual_recall()
 
     def skip(self) -> None:
         """Remove the next start, moving on to the one after."""
-        self.control.skip()
+        self._suite.skip()
 
     def abandon(self) -> None:
         """Stop all starts and fly the abandonment flag."""
-        self.control.abandon()
+        self._suite.abandon()
+
+    @property
+    def _suite(self) -> SourcedControl:
+        """Return the race controls, recording commands as coming from the suite."""
+        return self.control.with_source(SUITE_SOURCE)
+
+    def _require_synchronised_clock(self) -> None:
+        """Refuse a start time if this computer's clock may be wrong."""
+        if not self.config.control.require_ntp:
+            return
+        if self._clock_synchronised() is not True:
+            raise ClockNotSynchronisedError(
+                "This computer's clock isn't synchronised with NTP, so start times "
+                "can't be accepted"
+            )
+
+    def _compare_clocks(self, sent_at: float) -> None:
+        """Warn if this computer's clock and the suite's disagree."""
+        difference = self._clock() - sent_at
+        self._last_difference = difference
+        if abs(difference) > MAX_CLOCK_DIFFERENCE_S:
+            logger.warning(
+                "This clock is %.2f seconds %s the race control suite's, so the "
+                "countdown may not match its signals",
+                abs(difference), "ahead of" if difference > 0 else "behind",
+            )  # fmt: skip
 
     @property
     def is_streaming(self) -> bool:

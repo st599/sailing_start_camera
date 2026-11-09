@@ -79,7 +79,7 @@ The recalled class's new warning signal is 1 minute after the First Substitute c
 ## The race journal
 
 Every command, including any that was refused, is added to `control.journal_path` with its
-time, for later review. Each line is a JSON record.
+time and where it came from (`gui`, `phone`, `keys` or `suite`), for later review. Each line is a JSON record.
 
 If the application restarts, it replays the day's accepted commands, so the racing carries on
 as if nothing had happened: a postponement stays in force, and a start that was delayed stays

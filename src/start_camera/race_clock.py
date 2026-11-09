@@ -206,6 +206,44 @@ class RaceClock:
         for item in self._entries[self._entries.index(entry) :]:
             item.start += minutes * MINUTE_S
 
+    def set_start(self, now: float, start: float, name: str | None = None) -> None:
+        """Set when a start is, with the starts after it following at their spacing.
+
+        Args:
+            now: The current time.
+            start: The start time, in seconds since the epoch.
+            name: The class whose start it is. Defaults to the next start.
+        """
+        self._require_running()
+        entry = self._require_pending(now)
+        if name is not None:
+            entry = self._pending_named(now, name)
+        if start <= now:
+            raise RaceClockError("That start time has already passed")
+        index = self._entries.index(entry)
+        if index:
+            self._require_after(self._entries[index - 1], start)
+        self._schedule_from(index, start)
+
+    @staticmethod
+    def _require_after(previous: _Entry, start: float) -> None:
+        """Refuse a start that would come before, or with, the start ahead of it."""
+        name = previous.sequence.name
+        if previous.start is None:
+            raise RaceClockError(f"Set the start for {name} first")
+        if start <= previous.start:
+            raise RaceClockError(f"That would be before the start for {name}")
+
+    def _pending_named(self, now: float, name: str) -> _Entry:
+        """Return the first start for a class that hasn't happened yet."""
+        named = [entry for entry in self._entries if entry.sequence.name == name]
+        if not named:
+            raise RaceClockError(f"There's no start called {name}")
+        for entry in named:
+            if entry.start is None or entry.start > now:
+                return entry
+        raise RaceClockError(f"{name} has already started")
+
     def postpone(self, now: float) -> None:
         """Hold all starts that haven't happened, and fly the postponement flag."""
         self._require_running()

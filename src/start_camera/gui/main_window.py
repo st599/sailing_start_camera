@@ -58,6 +58,7 @@ from start_camera.api import CameraSystem
 # PROJECT IMPORTS
 #
 from start_camera.config import Config, ConfigError
+from start_camera.control import SourcedControl
 from start_camera.gui.line_editor import LineEditorDialog
 from start_camera.gui.sequence_editor import SequenceEditorDialog
 from start_camera.gui.settings_dialog import SettingsDialog
@@ -313,7 +314,7 @@ class MainWindow(QMainWindow):
 
     def _delay_action(self, minutes: float) -> Callable[[], None]:
         """Return what a delay button does."""
-        return lambda: self._send(lambda: self._session.control.shift(minutes))
+        return lambda: self._send(lambda: self._controls.shift(minutes))
 
     def _build_menu(self) -> None:
         """Add the menu."""
@@ -507,9 +508,14 @@ class MainWindow(QMainWindow):
             self.message_label.setText(str(error))
         self.refresh()
 
+    @property
+    def _controls(self) -> SourcedControl:
+        """Return the race controls, recording commands as coming from the GUI."""
+        return self._session.control.with_source("gui")
+
     def _send_command(self, name: str) -> None:
         """Run a race command by name, on the current session's controls."""
-        self._send(getattr(self._session.control, name))
+        self._send(getattr(self._controls, name))
 
     def _send_confirmed(self, question: str, name: str) -> None:
         """Run a disruptive race command once it's confirmed."""
@@ -518,7 +524,7 @@ class MainWindow(QMainWindow):
 
     def _toggle_recall(self) -> None:
         """Raise the individual recall flag, or take it down if it's flying."""
-        control = self._session.control
+        control = self._controls
         if INDIVIDUAL_RECALL_FLAG in self._session.summary().flags:
             self._send(control.clear_individual_recall)
         else:

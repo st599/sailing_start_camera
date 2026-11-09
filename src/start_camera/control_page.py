@@ -373,7 +373,7 @@ class _PageState:
         recorder: Recorder | None = None,
     ) -> None:
         """Hold what the page shows and controls."""
-        self.control = control
+        self.control = control.with_source("phone")
         self._recorder = recorder
         self.sessions = sessions
         self._clock = clock
