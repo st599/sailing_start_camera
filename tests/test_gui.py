@@ -51,8 +51,8 @@ from PySide6.QtCore import QPoint, QSize, Qt  # noqa: E402
 from PySide6.QtGui import QCloseEvent  # noqa: E402
 from PySide6.QtWidgets import QMessageBox, QPushButton, QScrollArea  # noqa: E402
 
+from start_camera.api import CameraSystem  # noqa: E402
 from start_camera.gui.main_window import MainWindow, VideoView  # noqa: E402
-from start_camera.gui.session import GuiSession  # noqa: E402
 from start_camera.gui.settings_model import ConfigDocument  # noqa: E402
 from start_camera.race_clock import Phase  # noqa: E402
 
@@ -165,7 +165,7 @@ class Harness:
             control=ControlConfig(journal_path=str(tmp_path / "j.jsonl")),
             **options,
         )
-        self.session = GuiSession(
+        self.session = CameraSystem(
             config,
             Secrets(),
             make_source=FakeSource,
@@ -174,10 +174,10 @@ class Harness:
         )
         self.source = self.session._source
         self.document = ConfigDocument(config)
-        self.sessions: list[GuiSession] = []
+        self.sessions: list[CameraSystem] = []
 
-        def make_session(new_config: Config) -> GuiSession:
-            session = GuiSession(
+        def make_session(new_config: Config) -> CameraSystem:
+            session = CameraSystem(
                 new_config,
                 Secrets(),
                 make_source=FakeSource,

@@ -51,9 +51,9 @@ from PySide6.QtCore import QPoint, QPointF, Qt  # noqa: E402
 from PySide6.QtGui import QWheelEvent  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
+from start_camera.api import CameraSystem  # noqa: E402
 from start_camera.gui.line_editor import LineEditorDialog  # noqa: E402
 from start_camera.gui.main_window import MainWindow  # noqa: E402
-from start_camera.gui.session import GuiSession  # noqa: E402
 
 #
 #  GLOBAL VARIABLES
@@ -548,8 +548,8 @@ class FakeStreaming:
 def make_window(qtbot: object, tmp_path: Path) -> MainWindow:
     """Return a started window."""
 
-    def make_session(config: Config) -> GuiSession:
-        return GuiSession(
+    def make_session(config: Config) -> CameraSystem:
+        return CameraSystem(
             config, Secrets(), make_source=FakeSource, make_streaming=FakeStreaming
         )
 

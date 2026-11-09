@@ -62,8 +62,8 @@ pytest.importorskip("pytestqt")
 
 from PySide6.QtWidgets import QFileDialog, QMessageBox  # noqa: E402
 
+from start_camera.api import CameraSystem  # noqa: E402
 from start_camera.gui.main_window import MainWindow  # noqa: E402
-from start_camera.gui.session import GuiSession  # noqa: E402
 from start_camera.gui.settings_dialog import (  # noqa: E402
     SettingsDialog,
     describe_candidate,
@@ -517,9 +517,9 @@ class Harness:
         self.asked = 0
         self.window._ask_to_save = self._ask
 
-    def make_session(self, config: Config) -> GuiSession:
+    def make_session(self, config: Config) -> CameraSystem:
         """Return a session with stand-ins."""
-        return GuiSession(
+        return CameraSystem(
             config, Secrets(), make_source=FakeSource, make_streaming=FakeStreaming
         )
 

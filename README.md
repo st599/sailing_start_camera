@@ -9,6 +9,7 @@ A start line camera for sailing races.
 ## Reference
 
 - [Command-line application](docs/command_line.md)
+- [Python interface](docs/python_api.md), for a race control suite
 - [GUI application](docs/gui.md)
 - [Streaming and viewing](docs/streaming.md)
 - [Recording](docs/recording.md)

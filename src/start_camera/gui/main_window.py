@@ -52,13 +52,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from start_camera.api import CameraSystem
+
 #
 # PROJECT IMPORTS
 #
 from start_camera.config import Config, ConfigError
 from start_camera.gui.line_editor import LineEditorDialog
 from start_camera.gui.sequence_editor import SequenceEditorDialog
-from start_camera.gui.session import GuiSession
 from start_camera.gui.settings_dialog import SettingsDialog
 from start_camera.gui.settings_model import ConfigDocument
 from start_camera.media_server import MediaServerError
@@ -159,10 +160,10 @@ class MainWindow(QMainWindow):
 
     def __init__(
         self,
-        session: GuiSession,
+        session: CameraSystem,
         document: ConfigDocument | None = None,
         *,
-        make_session: Callable[[Config], GuiSession] | None = None,
+        make_session: Callable[[Config], CameraSystem] | None = None,
     ) -> None:
         """Build the window.
 
@@ -175,7 +176,7 @@ class MainWindow(QMainWindow):
         self._session = session
         self._document = document or ConfigDocument(session.config)
         self._make_session = make_session or (
-            lambda config: GuiSession(config, self._session.secrets)
+            lambda config: CameraSystem(config, self._session.secrets)
         )
         self._busy = False
         self._worker: threading.Thread | None = None
