@@ -28,6 +28,7 @@ thread, but they use the same camera frames, overlays and race controls, so they
 # SYSTEM IMPORTS
 #
 
+import json
 import logging
 import threading
 import time
@@ -36,10 +37,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from types import TracebackType
-from typing import Protocol, Self
+from typing import Any, Protocol, Self
 
 import numpy as np
 from numpy.typing import NDArray
+from pydantic import ValidationError
 
 #
 # PROJECT IMPORTS
@@ -48,9 +50,16 @@ from start_camera.clock_check import clock_is_synchronised
 from start_camera.config import (
     Config,
     ConfigError,
+    FlagAction,
+    FlagEvent,
+    GeneralRecallMode,
+    PreparatoryFlag,
     Secrets,
+    SequenceConfig,
+    SequencesConfig,
     load_config,
     load_secrets,
+    save_config,
 )
 from start_camera.control import RaceControl, SourcedControl
 from start_camera.ingest import Frame, FrameSource
@@ -60,6 +69,7 @@ from start_camera.overlays.factory import build_compositor
 from start_camera.pipeline import Streaming, addresses_for_viewers
 from start_camera.race_clock import Phase, RaceClockError, ScheduledStart
 from start_camera.recording import Recorder, RecordingError
+from start_camera.sequence_model import check_sequences
 
 #
 #  GLOBAL VARIABLES
@@ -80,14 +90,30 @@ __all__ = [
     "Phase",
     "RaceClockError",
     "RecordingError",
+    "FlagAction",
+    "FlagEvent",
+    "GeneralRecallMode",
+    "PreparatoryFlag",
     "ScheduledStart",
     "Secrets",
+    "SequenceConfig",
+    "SequencesConfig",
+    "SequencesError",
     "SystemStatus",
 ]
 
 #
 # FUNCTIONS
 #
+
+
+class SequencesError(ValueError):
+    """Sequences can't be used, for the reasons in problems."""
+
+    def __init__(self, problems: list[str]) -> None:
+        """Hold the problems, one per line of the message."""
+        super().__init__("\n".join(["The sequences can't be used:", *problems]))
+        self.problems = problems
 
 
 class ClockNotSynchronisedError(RaceClockError):
@@ -124,6 +150,33 @@ class SystemStatus:
     camera_live: bool
     streaming: bool
     recording: bool
+
+
+def _checked_sequences(sequences: SequencesConfig | dict[str, Any]) -> SequencesConfig:
+    """Return valid sequences, or raise SequencesError with every problem."""
+    # Checked as JSON, as in a configuration file. A SequencesConfig is checked again,
+    # as a suite may have changed it since it was made.
+    if isinstance(sequences, SequencesConfig):
+        text = sequences.model_dump_json()
+    else:
+        text = json.dumps(sequences, default=str)
+    try:
+        checked = SequencesConfig.model_validate_json(text)
+    except ValidationError as error:
+        raise SequencesError(_field_problems(error)) from error
+    errors = check_sequences(checked).errors
+    if errors:
+        raise SequencesError(errors)
+    return checked
+
+
+def _field_problems(error: ValidationError) -> list[str]:
+    """Describe validation errors by field, never quoting the offending value."""
+    problems = []
+    for item in error.errors(include_input=False, include_url=False):
+        field = ".".join(str(part) for part in item["loc"]) or "(top level)"
+        problems.append(f"{field}: {item['msg']}")
+    return problems
 
 
 def _seconds(moment: datetime | float) -> float:
@@ -171,6 +224,7 @@ class CameraSystem:
         make_streaming: Callable[..., Streaming] | None = None,
         clock: Callable[[], float] = time.time,
         clock_synchronised: Callable[[], bool | None] = clock_is_synchronised,
+        config_path: Path | str | None = None,
     ) -> None:
         """Prepare everything, without starting it.
 
@@ -181,6 +235,7 @@ class CameraSystem:
             make_streaming: Makes what publishes the stream. For testing.
             clock: Provides the current time. For testing.
             clock_synchronised: Says whether NTP has set the clock. For testing.
+            config_path: Where the configuration came from, to save new sequences.
         """
         self.config = config
         self.control = RaceControl(
@@ -196,6 +251,7 @@ class CameraSystem:
         self._stream_lock = threading.Lock()
         self._clock_synchronised = clock_synchronised
         self._last_difference: float | None = None
+        self._config_path = Path(config_path) if config_path else None
 
     @classmethod
     def from_files(
@@ -207,7 +263,7 @@ class CameraSystem:
             ConfigError: If a file can't be read or isn't valid.
         """
         secrets = load_secrets(Path(secrets_path) if secrets_path else None)
-        return cls(load_config(Path(config_path)), secrets)
+        return cls(load_config(Path(config_path)), secrets, config_path=config_path)
 
     def __enter__(self) -> Self:
         """Start reading the camera."""
@@ -279,6 +335,62 @@ class CameraSystem:
         if sent_at is not None:
             self._compare_clocks(_seconds(sent_at))
         self._suite.set_start(when, name)
+
+    def set_sequences(
+        self,
+        sequences: SequencesConfig | dict[str, Any],
+        *,
+        force: bool = False,
+        save: bool = False,
+    ) -> list[str]:
+        """Use the day's sequences from the suite, straight away.
+
+        They're checked as in the GUI's sequence editor. The video's countdown and
+        flags change from the next frame, without restarting the stream. Changing the
+        sequences starts the day's racing afresh, so sending the ones already in use
+        changes nothing.
+
+        Args:
+            sequences: The sequences, or the same as a dictionary, as in the
+                "sequences" section of the configuration file.
+            force: Change them even while a sequence is under way or postponed.
+            save: Also save them to the configuration file.
+
+        Returns:
+            Anything worth checking, such as flags that overlap. The sequences are
+            used anyway.
+
+        Raises:
+            SequencesError: If the sequences are invalid, with each problem.
+            RaceClockError: If a sequence is under way, and force isn't set.
+            ConfigError: If saving was asked for and isn't possible. The sequences
+                are still used.
+        """
+        checked = _checked_sequences(sequences)
+        warnings = check_sequences(checked).warnings
+        for warning in warnings:
+            logger.warning("Sequences from the suite: %s", warning)
+        if self.control.replace_sequences(checked, SUITE_SOURCE, force=force):
+            self._use_sequences(checked)
+        if save:
+            self._save_config()
+        return warnings
+
+    def _use_sequences(self, sequences: SequencesConfig) -> None:
+        """Draw the overlays for new sequences."""
+        self.config = self.config.model_copy(update={"sequences": sequences})
+        self._compositor = build_compositor(self.config, self._clock, self.control)
+        self._display = RaceDisplay(self.config, self.control)
+        with self._stream_lock:
+            if self._streaming is not None:
+                self._streaming.use_sequences(sequences)
+
+    def _save_config(self) -> None:
+        """Save the configuration to the file it came from."""
+        if self._config_path is None:
+            raise ConfigError("There's no configuration file to save the sequences to")
+        save_config(self.config, self._config_path)
+        logger.info("Saved the sequences to %s", self._config_path)
 
     def clock_status(self) -> ClockStatus:
         """Return this computer's clock, and whether it's synchronised."""

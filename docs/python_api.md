@@ -30,6 +30,7 @@ with CameraSystem.from_files("config.json", "secrets.json") as system:
 | `start_recording()`, `stop_recording()` | Record the stream to files, while it's running |
 | `status()` | A `SystemStatus` snapshot |
 | `set_start(start, name=None, sent_at=None)` | Set exactly when a start is; see [Start times from the suite](#start-times-from-the-suite) |
+| `set_sequences(sequences, force=False, save=False)` | Use the day's sequences from the suite; see [The day's sequences](#the-days-sequences) |
 | `clock_status()` | A `ClockStatus`: this computer's clock, and whether it's synchronised |
 | `start_now()` | Bring the next start forward, so its warning signal is now |
 | `shift(minutes)` | Move every start that hasn't happened |
@@ -80,6 +81,40 @@ synchronised using NTP: if it isn't, or that can't be checked, `set_start` raise
 server. On a computer without `timedatectl`, or for testing, `control.require_ntp` can be set to
 `false` in the [configuration](configuration.md), at the risk of a wrong countdown.
 
+## The day's sequences
+
+The suite can send the day's classes, flags and times from its own schedule, instead of a
+template being picked in the GUI:
+
+```python
+from start_camera.api import SequenceConfig, SequencesConfig
+
+day = SequencesConfig(
+    items=[
+        SequenceConfig(name="Lasers", class_flag="L"),
+        SequenceConfig(name="Toppers", class_flag="T", minutes_after_previous=10),
+    ]
+)
+warnings = system.set_sequences(day)
+```
+
+- The sequences can also be a dictionary, laid out as the `sequences` section of the
+  [configuration file](configuration.md). `SequenceConfig`, `FlagEvent`, `FlagAction`,
+  `PreparatoryFlag` and `GeneralRecallMode` are there for building them in Python.
+- They're checked as in the GUI's sequence editor. If anything makes them unusable, such as a
+  missing name or a flag coming down without having gone up, `SequencesError` is raised and the
+  old sequences stay. Its `problems` list says what's wrong, one item for each problem.
+- Anything that's only worth checking, such as two classes' flags overlapping, is logged and
+  returned as a list of messages. The sequences are used anyway.
+- The video's countdown and flags change straight away, without restarting the stream.
+- New sequences start the day's racing afresh, with nothing scheduled unless they have a
+  `first_start`. While a sequence is under way or the racing is postponed, they're refused with
+  `RaceClockError`, unless `force=True` is passed. Sending the sequences already in use changes
+  nothing, so it's safe to send them again.
+- `save=True` also saves them to the configuration file, which needs the system to have been
+  made with `CameraSystem.from_files`. Without saving, a restart goes back to the file's
+  sequences, so the suite should send its sequences again after a restart.
+
 ## `ClockStatus`
 
 | Field | Meaning |
@@ -106,6 +141,7 @@ server. On a computer without `timedatectl`, or for testing, `control.require_nt
 |---|---|
 | `ConfigError` | A configuration or secrets file can't be read or isn't valid |
 | `RaceClockError` | A race command can't be carried out now |
+| `SequencesError` | Sequences sent by the suite can't be used. Its `problems` list says why. A kind of `ValueError` |
 | `ClockNotSynchronisedError` | A start time was refused because this computer's clock isn't synchronised. A kind of `RaceClockError` |
 | `RecordingError` | Recording can't start, such as when the stream isn't running |
 | `MediaServerError` | The stream's server can't be fetched or started |
@@ -113,4 +149,4 @@ server. On a computer without `timedatectl`, or for testing, `control.require_nt
 
 ## Still to come
 
-Setting the day's sequences, events, and a network interface are planned in issues #56 to #58.
+Events and a network interface are planned in issues #57 and #58.
