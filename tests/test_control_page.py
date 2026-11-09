@@ -33,13 +33,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
 from pydantic import ValidationError
 
 #
 # PROJECT IMPORTS
 #
-from start_camera import control_page, pipeline
+from start_camera import api, control_page
+from start_camera.api import CameraSystem
 from start_camera.config import (
     CameraConfig,
     Config,
@@ -60,6 +62,7 @@ from start_camera.control_page import (
     ControlPageError,
     ensure_certificate,
 )
+from start_camera.ingest import Frame
 from start_camera.recording import RecordingError
 
 #
@@ -534,42 +537,56 @@ def test_page_port_must_differ_from_the_stream_ports() -> None:
         )
 
 
+class NoCamera:
+    """Stands in for the camera, which these tests don't need."""
+
+    def __init__(self, *_: object) -> None:
+        """Do nothing."""
+
+    def start(self) -> None:
+        """Do nothing."""
+
+    def stop(self) -> None:
+        """Do nothing."""
+
+    def latest(self) -> Frame:
+        """Return a blank frame."""
+        return Frame(np.zeros((36, 64, 3), np.uint8), 0.0, 0, False)
+
+
+def page_for(tmp_path: Path, secrets: Secrets) -> object:
+    """Return the page a camera system starts, or None."""
+    config = make_config()
+    config.control.journal_path = str(tmp_path / "j.jsonl")
+    system = CameraSystem(config, secrets, make_source=NoCamera)
+    return system._start_page()
+
+
 def test_no_password_leaves_the_page_off(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    config = make_config()
-    control = RaceControl(config.sequences, tmp_path / "j.jsonl", Clock())
     with caplog.at_level(logging.INFO):
-        assert pipeline.start_control_page(config, Secrets(), control) is None
+        assert page_for(tmp_path, Secrets()) is None
     assert "phone page is off" in caplog.text
+    assert "network interface is off" in caplog.text
 
 
+@pytest.mark.parametrize(
+    "error", [ControlPageError("no certificate"), OSError("Address already in use")]
+)
 def test_page_failure_doesnt_stop_the_application(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    error: Exception,
 ) -> None:
     def fail(*_: object, **__: object) -> None:
-        raise ControlPageError("no certificate")
+        raise error
 
-    monkeypatch.setattr(pipeline, "ControlPage", fail)
-    config = make_config()
-    control = RaceControl(config.sequences, tmp_path / "j.jsonl", Clock())
-    secrets = Secrets(control_password=PASSWORD)
-    assert pipeline.start_control_page(config, secrets, control) is None
-    assert "phone control page is off" in caplog.text
-
-
-def test_port_in_use_doesnt_stop_the_application(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    def fail(*_: object, **__: object) -> None:
-        raise OSError("Address already in use")
-
-    monkeypatch.setattr(pipeline, "ControlPage", fail)
-    config = make_config()
-    control = RaceControl(config.sequences, tmp_path / "j.jsonl", Clock())
-    secrets = Secrets(control_password=PASSWORD)
-    assert pipeline.start_control_page(config, secrets, control) is None
-    assert "Address already in use" in caplog.text
+    monkeypatch.setattr(api, "ControlPage", fail)
+    assert page_for(tmp_path, Secrets(control_password=PASSWORD)) is None
+    assert "phone page and network interface are off" in caplog.text
+    assert str(error) in caplog.text
 
 
 @pytest.fixture

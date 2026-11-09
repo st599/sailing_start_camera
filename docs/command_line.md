@@ -73,6 +73,8 @@ contact, and the buttons won't work until it's back. Use the flags on the water 
   folder to create a new one, and each phone then needs to accept it again.
 - **With no password set:** the page is off, and the video carries on as normal. The same goes
   if the page can't start, and the log says why.
+- **The network interface** for a race control suite shares the page's port. See
+  [Network interface](network_api.md).
 
 ## Stopping
 

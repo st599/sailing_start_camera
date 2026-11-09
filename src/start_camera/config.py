@@ -56,14 +56,19 @@ MAX_STARTS = 10
 MIN_SCAN_PREFIX = 20
 CLASS_FLAG = "class"
 PREPARATORY_FLAG = "preparatory"
+MIN_TOKEN_LENGTH = 24
 SECRET_ENVIRONMENT = {
     "camera_username": "STARTCAM_CAMERA_USERNAME",
     "camera_password": "STARTCAM_CAMERA_PASSWORD",
     "youtube_stream_key": "STARTCAM_YOUTUBE_STREAM_KEY",
     "control_password": "STARTCAM_CONTROL_PASSWORD",
+    "api_token": "STARTCAM_API_TOKEN",
+    "api_read_token": "STARTCAM_API_READ_TOKEN",
 }
 
 Port = Annotated[int, Field(ge=1, le=65535)]
+# Tokens are for programs, so they can be long enough that guessing is hopeless.
+Token = Annotated[SecretStr, Field(min_length=MIN_TOKEN_LENGTH)]
 Fraction = Annotated[float, Field(ge=0, le=1)]
 Colour = Annotated[str, Field(pattern=r"^#[0-9a-fA-F]{6}$")]
 
@@ -385,6 +390,8 @@ class Secrets(StrictModel):
     camera_password: SecretStr | None = None
     youtube_stream_key: SecretStr | None = None
     control_password: SecretStr | None = None
+    api_token: Token | None = None
+    api_read_token: Token | None = None
 
 
 def _validation_message(path: Path, error: ValidationError) -> str:
@@ -495,6 +502,8 @@ def load_secrets(
         _, values = _read_json_object(path)
         if path.stat().st_mode & 0o077:
             logger.warning("%s can be read by other users; use chmod 600", path)
+    # An empty value, as in the example file, means it isn't set.
+    values = {name: value for name, value in values.items() if value != ""}
     environ = os.environ if environ is None else environ
     for field, variable in SECRET_ENVIRONMENT.items():
         if environ.get(variable):

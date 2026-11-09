@@ -316,6 +316,26 @@ def test_empty_environment_variable_is_ignored() -> None:
     assert secrets.camera_password is None
 
 
+def test_empty_values_in_the_file_are_ignored(tmp_path: Path) -> None:
+    secrets = load_secrets(EXAMPLES / "secrets.example.json", environ={})
+    assert all(value is None for value in secrets.model_dump().values())
+
+
+def test_tokens_come_from_the_environment() -> None:
+    token = "t" * 30
+    secrets = load_secrets(
+        environ={"STARTCAM_API_TOKEN": token, "STARTCAM_API_READ_TOKEN": token + "r"}
+    )
+    assert secrets.api_token.get_secret_value() == token
+    assert secrets.api_read_token.get_secret_value() == token + "r"
+
+
+def test_short_token_is_an_error_without_the_value() -> None:
+    with pytest.raises(ConfigError, match="api_token") as caught:
+        load_secrets(environ={"STARTCAM_API_TOKEN": "tiny-token"})
+    assert "tiny-token" not in str(caught.value)
+
+
 def test_secrets_are_hidden_when_displayed() -> None:
     secrets = load_secrets(environ={"STARTCAM_YOUTUBE_STREAM_KEY": "abcd-1234"})
     assert "abcd-1234" not in repr(secrets)

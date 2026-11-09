@@ -182,6 +182,14 @@ class YouTubePush:
             redact=(self._key, quote(self._key, safe="")),
         )
 
+    @property
+    def is_live(self) -> bool:
+        """Return whether video is reaching YouTube."""
+        progress = getattr(self, "_progress", None)
+        process = getattr(self, "_process", None)
+        alive = process is not None and process.poll() is None
+        return alive and progress is not None and progress.connected
+
     def _report_connection(self) -> None:
         """Log the first data sent by each connection."""
         if self._progress.connected and not self._reported_connected:

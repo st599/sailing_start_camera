@@ -21,10 +21,12 @@ the missing library with `sudo apt install libxcb-cursor0`.
   from `control.delay_steps`. These are the same commands as the keys and the phone page, and
   they're described in [Race control](race_control.md). Abandon, general recall and next start ask
   for confirmation. If a command is refused, the reason appears under the time.
-- **Start streaming** starts the stream, the viewer pages, the phone page and YouTube if it's
-  enabled. The addresses then appear in the panel. The first time, it may need to download
+- **Start streaming** starts the stream, the viewer pages and YouTube if it's enabled. The addresses then appear in the panel. The first time, it may need to download
   MediaMTX. Stopping the stream leaves the preview and the racing running.
 - **The log** at the bottom shows what's happening, including any problems.
+
+The phone page and the [network interface](network_api.md), if they're set up, run whenever the
+window is open, whether or not it's streaming. They restart when the configuration changes.
 
 The window fits screens of 1024x600 and larger, and the picture scales with the window. If the
 panel doesn't fit, it scrolls.

@@ -163,3 +163,9 @@ chmod 600 secrets.json
 | `camera_password` | `STARTCAM_CAMERA_PASSWORD` |
 | `youtube_stream_key` | `STARTCAM_YOUTUBE_STREAM_KEY` |
 | `control_password` | `STARTCAM_CONTROL_PASSWORD` |
+| `api_token` | `STARTCAM_API_TOKEN` |
+| `api_read_token` | `STARTCAM_API_READ_TOKEN` |
+
+`api_token` and `api_read_token` turn on the [network interface](network_api.md), for a race
+control suite. They must be at least 24 characters. An empty value in the file counts as not
+set.

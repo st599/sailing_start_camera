@@ -108,6 +108,7 @@ class FakeStreaming:
         """Note the instance."""
         self.started = self.stopped = 0
         self.recorder = None
+        self.youtube_state = "off"
         FakeStreaming.instances.append(self)
 
     def start(self) -> None:
