@@ -35,9 +35,10 @@ import os
 import threading
 import time
 from collections.abc import Callable
+from contextlib import AbstractContextManager
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 #
 # PROJECT IMPORTS
@@ -117,6 +118,18 @@ def _commands_to_replay(
     return commands
 
 
+class RaceObserver(Protocol):
+    """Something told about every change to the racing, while it's being made."""
+
+    def before_change(self, now: float) -> None:
+        """Note the moment just before a change, with the racing as it was."""
+
+    def after_change(
+        self, command: str, source: str, arguments: dict[str, object], now: float
+    ) -> None:
+        """Note an accepted change, with the racing as it now is."""
+
+
 class RaceControl:
     """A race clock that can be used safely from any thread, with a journal."""
 
@@ -133,7 +146,9 @@ class RaceControl:
             journal_path: The journal file.
             clock: Provides the current time.
         """
-        self._lock = threading.Lock()
+        # Reentrant, so an observer can read the state while a change is made.
+        self._lock = threading.RLock()
+        self._observers: list[RaceObserver] = []
         self._clock = clock
         self._journal_path = journal_path
         self._sequences_hash = _sequences_hash(config)
@@ -152,6 +167,15 @@ class RaceControl:
         """Return the state of the start sequences at a moment."""
         with self._lock:
             return self._race_clock.state(now)
+
+    def observe(self, observer: RaceObserver) -> None:
+        """Tell an observer about every change from now on."""
+        with self._lock:
+            self._observers.append(observer)
+
+    def locked(self) -> AbstractContextManager[object]:
+        """Return a context that holds off changes, for reading several states."""
+        return self._lock
 
     def replace_sequences(
         self,
@@ -187,11 +211,13 @@ class RaceControl:
                 raise RaceClockError(
                     f"The racing is {phase.value}, so the sequences can't change now"
                 )
+            self._notify_before(now)
             self._race_clock = RaceClock(config, now)
             self._sequences_hash = sequences_hash
             self._session_written = False
             logger.info("New sequences from %s: %d starts", source, len(config.items))
             self._write_records([self._session_record(now, source)])
+            self._notify_after("set_sequences", source, {}, now)
             return True
 
     def with_source(self, source: str) -> "SourcedControl":
@@ -248,6 +274,7 @@ class RaceControl:
         """
         with self._lock:
             now = self._clock()
+            self._notify_before(now)
             try:
                 _apply(self._race_clock, command, now, arguments)
             except RaceClockError as error:
@@ -259,6 +286,19 @@ class RaceControl:
                 command, f"{arguments} " if arguments else "", source,
             )  # fmt: skip
             self._write_command(command, source, now, arguments, accepted=True)
+            self._notify_after(command, source, arguments, now)
+
+    def _notify_before(self, now: float) -> None:
+        """Tell the observers a change is about to be made."""
+        for observer in self._observers:
+            observer.before_change(now)
+
+    def _notify_after(
+        self, command: str, source: str, arguments: dict[str, object], now: float
+    ) -> None:
+        """Tell the observers about an accepted change."""
+        for observer in self._observers:
+            observer.after_change(command, source, arguments, now)
 
     def _replay(self, commands: list[dict[str, Any]]) -> None:
         """Bring the race clock up to date with today's commands."""

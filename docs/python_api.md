@@ -31,6 +31,8 @@ with CameraSystem.from_files("config.json", "secrets.json") as system:
 | `status()` | A `SystemStatus` snapshot |
 | `set_start(start, name=None, sent_at=None)` | Set exactly when a start is; see [Start times from the suite](#start-times-from-the-suite) |
 | `set_sequences(sequences, force=False, save=False)` | Use the day's sequences from the suite; see [The day's sequences](#the-days-sequences) |
+| `subscribe(listener)` | Call a function with every [event](#events) from now on. Returns a function that stops the calls |
+| `events_since(number=0)` | The recent events after a number, oldest first |
 | `clock_status()` | A `ClockStatus`: this computer's clock, and whether it's synchronised |
 | `start_now()` | Bring the next start forward, so its warning signal is now |
 | `shift(minutes)` | Move every start that hasn't happened |
@@ -115,6 +117,55 @@ warnings = system.set_sequences(day)
   made with `CameraSystem.from_files`. Without saving, a restart goes back to the file's
   sequences, so the suite should send its sequences again after a restart.
 
+## Events
+
+Events tell the suite what's happening as it happens, so it can confirm its signals were
+shown, and notice changes made at the start box.
+
+```python
+from start_camera.api import Event, EventKind
+
+def on_event(event: Event) -> None:
+    if event.kind is EventKind.FLAG_UP:
+        print(event.number, event.time, event.details["flag"])
+
+stop = system.subscribe(on_event)
+```
+
+Each `Event` has:
+
+| Field | Meaning |
+|---|---|
+| `number` | Goes up by one for each event, from 1 when the system starts. A gap means events were missed; a smaller number means the camera system restarted |
+| `time` | When it happened, in seconds since the epoch |
+| `kind` | An `EventKind`, below |
+| `details` | More about it, as below; it can't be changed |
+
+| `EventKind` | `details` |
+|---|---|
+| `FLAG_UP`, `FLAG_DOWN` | `flag`, such as `"P"` or a class flag |
+| `START` | The class that started: `name`, `class_flag` and `start` |
+| `PHASE` | The new `phase`, such as `"in sequence"` or `"postponed"` |
+| `SCHEDULE` | A race command: its `command`, `arguments` and `source`, and the `upcoming` start afterwards (`name`, `class_flag` and `start`), or `None` |
+| `SEQUENCES` | New sequences were set: `command` and `source` |
+| `RECORDING_STARTED`, `RECORDING_STOPPED` | Nothing |
+| `CAMERA_LOST`, `CAMERA_REGAINED` | Nothing |
+| `STREAM_STARTED`, `STREAM_STOPPED` | Nothing |
+
+- Flag, start and phase events have the moment the change happened by the race clock, to
+  within a millisecond, rather than when it was noticed. They're noticed within about a
+  twentieth of a second.
+- `source` says where a command came from: `suite`, `gui`, `phone` or `keys`. A command's
+  `SCHEDULE` event comes before the flag and phase events it causes.
+- Recording, camera and stream events are noticed within about a twentieth of a second, and
+  that's their time.
+- Each listener is called on a thread of its own, in order. A slow listener can't hold up the
+  stream, the racing or the other listeners, but if it falls a thousand events behind it
+  misses some, which shows as a gap in the numbers. A listener that raises an exception is
+  logged and keeps getting events.
+- `events_since(number)` returns the last thousand events after a number, so a listener can
+  fetch any it missed.
+
 ## `ClockStatus`
 
 | Field | Meaning |
@@ -149,4 +200,4 @@ warnings = system.set_sequences(day)
 
 ## Still to come
 
-Events and a network interface are planned in issues #57 and #58.
+A network interface is planned in issue #58.

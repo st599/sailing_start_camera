@@ -62,6 +62,7 @@ from start_camera.config import (
     save_config,
 )
 from start_camera.control import RaceControl, SourcedControl
+from start_camera.events import Event, EventHub, EventKind
 from start_camera.ingest import Frame, FrameSource
 from start_camera.media_server import MediaServerError
 from start_camera.overlays.countdown import RaceDisplay, RaceSummary
@@ -70,6 +71,7 @@ from start_camera.pipeline import Streaming, addresses_for_viewers
 from start_camera.race_clock import Phase, RaceClockError, ScheduledStart
 from start_camera.recording import Recorder, RecordingError
 from start_camera.sequence_model import check_sequences
+from start_camera.watcher import SystemState, Watcher
 
 #
 #  GLOBAL VARIABLES
@@ -86,6 +88,8 @@ __all__ = [
     "ClockStatus",
     "Config",
     "ConfigError",
+    "Event",
+    "EventKind",
     "MediaServerError",
     "Phase",
     "RaceClockError",
@@ -252,6 +256,8 @@ class CameraSystem:
         self._clock_synchronised = clock_synchronised
         self._last_difference: float | None = None
         self._config_path = Path(config_path) if config_path else None
+        self._events = EventHub()
+        self._watcher = Watcher(self.control, self._events, clock, self._system_state)
 
     @classmethod
     def from_files(
@@ -462,8 +468,33 @@ class CameraSystem:
         return self._streaming is not None
 
     def start(self) -> None:
-        """Start reading the camera for the preview."""
+        """Start reading the camera for the preview, and watching for events."""
         self._source.start()
+        self._watcher.start()
+
+    def subscribe(self, listener: Callable[[Event], None]) -> Callable[[], None]:
+        """Call a function with every event from now on.
+
+        Each listener is called on a thread of its own, so a slow one can't hold up the
+        stream or the racing. One that falls far behind misses events, which shows as a
+        gap in their numbers.
+
+        Returns:
+            A function that stops the calls.
+        """
+        return self._events.subscribe(listener)
+
+    def events_since(self, number: int = 0) -> list[Event]:
+        """Return the recent events after a number, oldest first.
+
+        This is how a listener can fetch events it missed. Only the most recent
+        thousand are kept.
+        """
+        return self._events.since(number)
+
+    def _system_state(self) -> SystemState:
+        """Return whether the stream and recording are running, and the camera live."""
+        return SystemState(self.is_streaming, self.is_recording, self.camera_is_live())
 
     def preview(self) -> NDArray[np.uint8]:
         """Return the newest frame with its overlays."""
@@ -544,4 +575,8 @@ class CameraSystem:
     def close(self) -> None:
         """Stop everything."""
         self.stop_stream()
+        self._watcher.stop()
+        # The last check publishes the stream stopping, before the camera stops.
+        self._watcher.check()
         self._source.stop()
+        self._events.close()
