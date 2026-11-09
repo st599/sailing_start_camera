@@ -35,7 +35,6 @@ from numpy.typing import NDArray
 #
 from start_camera.config import Config, Secrets, SequencesConfig
 from start_camera.control import RaceControl
-from start_camera.control_page import ControlPage, ControlPageError
 from start_camera.discovery import primary_address
 from start_camera.ingest import Frame
 from start_camera.media_server import MediaServer, ensure_binary, viewer_urls
@@ -69,39 +68,13 @@ def start_youtube(config: Config, secrets: Secrets) -> YouTubePush | None:
     return push
 
 
-def start_control_page(
-    config: Config,
-    secrets: Secrets,
-    control: RaceControl,
-    recorder: Recorder | None = None,
-) -> ControlPage | None:
-    """Start the phone control page if possible. The stream doesn't depend on it."""
-    if secrets.control_password is None:
-        logger.info("No control_password in the secrets, so the phone page is off")
-        return None
-    address = primary_address() or "localhost"
-    try:
-        page = ControlPage(
-            config,
-            control,
-            secrets.control_password.get_secret_value(),
-            address=address,
-            recorder=recorder,
-        )
-    except (ControlPageError, OSError) as error:
-        logger.error("The phone control page is off: %s", error)
-        return None
-    logger.info("Race officer's phone page: https://%s:%d/", address, page.port)
-    return page
-
-
 def addresses_for_viewers(config: Config) -> dict[str, str]:
     """Return where viewers can watch, by use."""
     return viewer_urls(config.stream, primary_address() or "localhost")
 
 
 class Streaming:
-    """The server, the encoder, the viewer pages, YouTube and the phone page."""
+    """The server, the encoder, the viewer pages and YouTube."""
 
     def __init__(
         self,
@@ -127,7 +100,6 @@ class Streaming:
         self._viewer: ViewerServer | None = None
         self._publisher: Publisher | None = None
         self._push: YouTubePush | None = None
-        self._page: ControlPage | None = None
         self.recorder: Recorder | None = None
 
     def start(self) -> None:
@@ -159,11 +131,16 @@ class Streaming:
         )
         self._publisher.start()
         self._push = start_youtube(config, self._secrets)
-        self._page = start_control_page(
-            config, self._secrets, self._control, self.recorder
-        )
         if config.recording.start_with_stream:
             self._start_recording()
+
+    @property
+    def youtube_state(self) -> str:
+        """Return "off", "connecting", or "live" when video is reaching YouTube."""
+        push = self._push
+        if push is None:
+            return "off"
+        return "live" if push.is_live else "connecting"
 
     def use_sequences(self, sequences: SequencesConfig) -> None:
         """Draw the overlays for new sequences from the next frame on."""
@@ -191,7 +168,7 @@ class Streaming:
             # Stopping first finishes the current recording properly.
             self.recorder.close()
             self.recorder = None
-        for name in ("_page", "_push", "_publisher", "_viewer", "_server"):
+        for name in ("_push", "_publisher", "_viewer", "_server"):
             part = getattr(self, name)
             if part is not None:
                 part.stop()

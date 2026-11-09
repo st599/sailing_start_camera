@@ -24,11 +24,12 @@ with CameraSystem.from_files("config.json", "secrets.json") as system:
 |---|---|
 | `CameraSystem(config, secrets)` | Prepare the system from a `Config` and `Secrets` |
 | `CameraSystem.from_files(config_path, secrets_path=None)` | The same, from files |
-| `start()`, or entering a `with` block | Start reading the camera |
+| `start()`, or entering a `with` block | Start reading the camera, and the phone page and [network interface](network_api.md) if they're set up |
 | `close()`, or leaving the `with` block | Stop everything, including the stream and recording |
 | `start_stream()`, `stop_stream()` | Start or stop the stream, the viewer pages, YouTube and the phone page. Starting can take a few seconds |
 | `start_recording()`, `stop_recording()` | Record the stream to files, while it's running |
 | `status()` | A `SystemStatus` snapshot |
+| `youtube_state()` | `"off"`, `"connecting"`, or `"live"` when video is reaching YouTube |
 | `set_start(start, name=None, sent_at=None)` | Set exactly when a start is; see [Start times from the suite](#start-times-from-the-suite) |
 | `set_sequences(sequences, force=False, save=False)` | Use the day's sequences from the suite; see [The day's sequences](#the-days-sequences) |
 | `subscribe(listener)` | Call a function with every [event](#events) from now on. Returns a function that stops the calls |
@@ -185,6 +186,7 @@ Each `Event` has:
 | `upcoming`, `latest` | The next and the most recent start, as `ScheduledStart` with `name`, `class_flag` and `start` in seconds since the epoch, or `None` |
 | `camera_live` | Whether the camera's picture is arriving |
 | `streaming`, `recording` | Whether the stream and recording are running |
+| `youtube` | `"off"`, `"connecting"`, or `"live"` when video is reaching YouTube |
 
 ## Errors
 
@@ -198,6 +200,6 @@ Each `Event` has:
 | `MediaServerError` | The stream's server can't be fetched or started |
 | `OSError` | A port the stream needs is in use |
 
-## Still to come
+## From another program or language
 
-A network interface is planned in issue #58.
+The [network interface](network_api.md) offers the same over HTTPS, as JSON.

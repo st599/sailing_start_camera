@@ -39,16 +39,24 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
+from urllib.parse import parse_qsl
 
 #
 # PROJECT IMPORTS
 #
 from start_camera.config import Config
 from start_camera.control import RaceControl
+from start_camera.network_api import (
+    PREFIX,
+    ApiError,
+    NetworkApi,
+    openapi_json,
+    since_for_stream,
+)
 from start_camera.overlays.countdown import RaceDisplay
 from start_camera.race_clock import RaceClockError
-from start_camera.recording import Recorder, RecordingError
+from start_camera.recording import RecordingError
 
 #
 #  GLOBAL VARIABLES
@@ -65,6 +73,7 @@ SESSION_LIFETIME_S = 12 * 3600.0
 MAX_LOGIN_FAILURES = 5
 LOCKOUT_S = 60.0
 MAX_BODY_BYTES = 4096
+MAX_API_BODY_BYTES = 65536
 REQUEST_TIMEOUT_S = 30.0
 SIMPLE_COMMANDS = (
     "start_now",
@@ -249,6 +258,23 @@ class ControlPageError(Exception):
     """The control page could not be set up."""
 
 
+class Recording(Protocol):
+    """Starts and stops recording."""
+
+    @property
+    def is_recording(self) -> bool:
+        """Return whether recording is on."""
+        ...
+
+    def start(self) -> None:
+        """Start recording."""
+        ...
+
+    def stop(self) -> None:
+        """Stop recording."""
+        ...
+
+
 def ensure_certificate(directory: Path, address: str) -> tuple[Path, Path]:
     """Return a self-signed certificate and key, creating them only if needed.
 
@@ -293,23 +319,21 @@ def ensure_certificate(directory: Path, address: str) -> tuple[Path, Path]:
 
 
 @dataclass
-class _LoginAttempts:
-    """Recent failed logins from one address."""
+class _Attempts:
+    """Recent failures from one address."""
 
     failures: int = 0
     locked_until: float = 0.0
 
 
-class _Sessions:
-    """Logged-in phones, and limits on guessing the password."""
+class FailureLimiter:
+    """Locks out an address for a while after repeated wrong passwords or tokens."""
 
-    def __init__(self, password: str, clock: Callable[[], float]) -> None:
-        """Hold the password."""
-        self._password = password.encode()
+    def __init__(self, clock: Callable[[], float]) -> None:
+        """Start with no failures."""
         self._clock = clock
         self._lock = threading.Lock()
-        self._expiry: dict[str, float] = {}
-        self._attempts: dict[str, _LoginAttempts] = {}
+        self._attempts: dict[str, _Attempts] = {}
 
     def seconds_locked(self, address: str) -> float:
         """Return how long an address must wait before trying again."""
@@ -317,20 +341,47 @@ class _Sessions:
             attempts = self._attempts.get(address)
             return max(0.0, attempts.locked_until - self._clock()) if attempts else 0.0
 
+    def failed(self, address: str) -> None:
+        """Note a failure, locking the address out after too many."""
+        with self._lock:
+            attempts = self._attempts.setdefault(address, _Attempts())
+            attempts.failures += 1
+            if attempts.failures >= MAX_LOGIN_FAILURES:
+                attempts.failures = 0
+                attempts.locked_until = self._clock() + LOCKOUT_S
+
+    def succeeded(self, address: str) -> None:
+        """Clear an address's failures."""
+        with self._lock:
+            self._attempts.pop(address, None)
+
+
+class _Sessions:
+    """Logged-in phones, and limits on guessing the password."""
+
+    def __init__(
+        self, password: str, clock: Callable[[], float], limiter: FailureLimiter
+    ) -> None:
+        """Hold the password."""
+        self._password = password.encode()
+        self._clock = clock
+        self._lock = threading.Lock()
+        self._expiry: dict[str, float] = {}
+        self.limiter = limiter
+
+    def seconds_locked(self, address: str) -> float:
+        """Return how long an address must wait before trying again."""
+        return self.limiter.seconds_locked(address)
+
     def log_in(self, address: str, password: str) -> str | None:
         """Return a new session token if the password is right."""
         # Comparing in constant time gives nothing away about a wrong password.
-        correct = hmac.compare_digest(password.encode(), self._password)
+        if not hmac.compare_digest(password.encode(), self._password):
+            self.limiter.failed(address)
+            return None
+        self.limiter.succeeded(address)
         with self._lock:
             now = self._clock()
-            if not correct:
-                attempts = self._attempts.setdefault(address, _LoginAttempts())
-                attempts.failures += 1
-                if attempts.failures >= MAX_LOGIN_FAILURES:
-                    attempts.failures = 0
-                    attempts.locked_until = now + LOCKOUT_S
-                return None
-            self._attempts.pop(address, None)
             self._expiry = {
                 token: expiry for token, expiry in self._expiry.items() if expiry > now
             }
@@ -368,14 +419,16 @@ class _PageState:
         self,
         config: Config,
         control: RaceControl,
-        sessions: _Sessions,
+        sessions: _Sessions | None,
         clock: Callable[[], float],
-        recorder: Recorder | None = None,
+        recorder: Recording | None = None,
+        api: NetworkApi | None = None,
     ) -> None:
         """Hold what the page shows and controls."""
         self.control = control.with_source("phone")
         self._recorder = recorder
         self.sessions = sessions
+        self.api = api
         self._clock = clock
         self._delay_steps = config.control.delay_steps
         self._display = RaceDisplay(config, control)
@@ -424,9 +477,13 @@ def _make_handler(state: _PageState) -> type[BaseHTTPRequestHandler]:
         timeout = REQUEST_TIMEOUT_S
 
         def do_GET(self) -> None:  # noqa: N802 - the name http.server requires
-            """Serve the page or the state."""
-            path = self.path.split("?", 1)[0]
-            if path == "/":
+            """Serve the page, its state, or the network interface."""
+            path, query = _split(self.path)
+            if path.startswith(PREFIX):
+                self._handle_api("GET", path.removeprefix(PREFIX), query)
+            elif state.sessions is None:
+                self._send_json(404, {"error": "Not found"})
+            elif path == "/":
                 self._send(200, PAGE.encode(), "text/html; charset=utf-8")
             elif path == "/api/state":
                 if self._require_session():
@@ -435,16 +492,22 @@ def _make_handler(state: _PageState) -> type[BaseHTTPRequestHandler]:
                 self._send_json(404, {"error": "Not found"})
 
         def do_POST(self) -> None:  # noqa: N802 - the name http.server requires
-            """Handle a login, a logout or a command."""
+            """Handle a login, a logout, a command, or the network interface."""
+            path, query = _split(self.path)
+            if path.startswith(PREFIX):
+                self._handle_api("POST", path.removeprefix(PREFIX), query)
+                return
             try:
-                body = self._read_body()
+                if state.sessions is None:
+                    raise _RequestError(404, "Not found")
+                body = self._read_body(MAX_BODY_BYTES)
                 self._check_origin()
-                self._dispatch_post(self.path.split("?", 1)[0], body)
+                self._dispatch_post(path, body)
             except _RequestError as error:
-                self._send_json(error.status, {"error": error.message})
+                self._send_json(error.status, {"error": str(error)})
 
         def _dispatch_post(self, path: str, body: dict[str, Any]) -> None:
-            """Carry out a POST request."""
+            """Carry out a POST request from the phone page."""
             if path == "/api/login":
                 self._log_in(body)
             elif path == "/api/logout":
@@ -456,6 +519,59 @@ def _make_handler(state: _PageState) -> type[BaseHTTPRequestHandler]:
                     self._send_json(200, state.describe())
             else:
                 self._send_json(404, {"error": "Not found"})
+
+        def _handle_api(self, method: str, path: str, query: dict[str, str]) -> None:
+            """Answer a request to the network interface."""
+            api = state.api
+            try:
+                if api is None:
+                    raise ApiError(404, "not_found", "The network interface is off")
+                if method == "GET" and path == "openapi.json":
+                    self._send(200, openapi_json(), "application/json")
+                    return
+                body = self._api_body(method)
+                self._check_origin()
+                access = api.authorise(
+                    self.headers.get("Authorization"), self.client_address[0]
+                )
+                if method == "GET" and path == "events/stream":
+                    self._stream_events(api, query)
+                elif method == "GET":
+                    self._send_json(200, api.get(path, query))
+                else:
+                    self._send_json(200, api.post(path, body, access))
+            except _RequestError as error:
+                reply = {"error": str(error), "code": "bad_request"}
+                self._send_json(error.status, reply)
+            except ApiError as error:
+                self._send_json(error.status, error.body())
+            except Exception:
+                logger.exception("Network interface: couldn't answer %s", path)
+                reply = {"error": "Something went wrong", "code": "internal"}
+                self._send_json(500, reply)
+
+        def _api_body(self, method: str) -> dict[str, Any]:
+            """Return a network request's JSON body, which only a POST has."""
+            return self._read_body(MAX_API_BODY_BYTES) if method == "POST" else {}
+
+        def _stream_events(self, api: NetworkApi, query: dict[str, str]) -> None:
+            """Send events until the client goes away."""
+            since = since_for_stream(query, self.headers.get("Last-Event-ID"))
+
+            def open_stream() -> None:
+                self.close_connection = True
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.wfile.flush()
+
+            def write(data: bytes) -> None:
+                self.wfile.write(data)
+                self.wfile.flush()
+
+            api.stream_events(since, open_stream, write)
 
         def _log_in(self, body: dict[str, Any]) -> None:
             """Check a password, limiting how often it can be tried."""
@@ -507,14 +623,14 @@ def _make_handler(state: _PageState) -> type[BaseHTTPRequestHandler]:
             if origin is not None and origin != f"https://{self.headers.get('Host')}":
                 raise _RequestError(403, "Request from another site")
 
-        def _read_body(self) -> dict[str, Any]:
+        def _read_body(self, limit: int) -> dict[str, Any]:
             """Return the request's JSON body, within a size limit."""
             try:
                 length = int(self.headers.get("Content-Length", "0"))
             except ValueError as error:
                 self.close_connection = True
                 raise _RequestError(400, "Bad request") from error
-            if not 0 <= length <= MAX_BODY_BYTES:
+            if not 0 <= length <= limit:
                 self.close_connection = True
                 raise _RequestError(413, "Request too large")
             try:
@@ -556,6 +672,12 @@ def _make_handler(state: _PageState) -> type[BaseHTTPRequestHandler]:
     return ControlPageHandler
 
 
+def _split(target: str) -> tuple[str, dict[str, str]]:
+    """Return a request's path and its query parameters."""
+    path, _, query = target.partition("?")
+    return path, dict(parse_qsl(query))
+
+
 class _QuietServer(ThreadingHTTPServer):
     """A server that doesn't print an error for each failed connection."""
 
@@ -573,23 +695,26 @@ class ControlPage:
         self,
         config: Config,
         control: RaceControl,
-        password: str,
+        password: str | None,
         *,
         address: str = "localhost",
         certificate_directory: Path = CERTIFICATE_DIRECTORY,
         clock: Callable[[], float] = time.time,
-        recorder: Recorder | None = None,
+        recorder: Recording | None = None,
+        api: NetworkApi | None = None,
     ) -> None:
         """Open the page's port.
 
         Args:
             config: The configuration.
             control: The race controls.
-            password: The password for the page.
+            password: The password for the page, or None to serve only the network
+                interface.
             address: The computer's address, to name in a new certificate.
             certificate_directory: Where the certificate is kept.
             clock: Provides the current time.
             recorder: Controls recording, if the page may use it.
+            api: The network interface, if it's on.
 
         Raises:
             ControlPageError: If the certificate can't be created or used.
@@ -601,8 +726,10 @@ class ControlPage:
             context.load_cert_chain(certificate, key)
         except ssl.SSLError as error:
             raise ControlPageError(f"Can't use the certificate: {error}") from error
-        sessions = _Sessions(password, clock)
-        state = _PageState(config, control, sessions, clock, recorder)
+        limiter = api.limiter if api is not None else FailureLimiter(clock)
+        sessions = None if password is None else _Sessions(password, clock, limiter)
+        state = _PageState(config, control, sessions, clock, recorder, api)
+        self._api = api
         address_and_port = ("", config.control.page_port)
         self._server = _QuietServer(address_and_port, _make_handler(state))
         # The handshake happens in each connection's own thread, so one slow phone
@@ -617,7 +744,9 @@ class ControlPage:
         self._thread.start()
 
     def stop(self) -> None:
-        """Close the page's port."""
+        """Close the page's port, and end any event streams."""
+        if self._api is not None:
+            self._api.stopping.set()
         self._server.shutdown()
         self._server.server_close()
         self._thread.join()

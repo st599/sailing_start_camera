@@ -43,6 +43,8 @@ import numpy as np
 from numpy.typing import NDArray
 from pydantic import ValidationError
 
+from start_camera import control_page
+
 #
 # PROJECT IMPORTS
 #
@@ -62,9 +64,13 @@ from start_camera.config import (
     save_config,
 )
 from start_camera.control import RaceControl, SourcedControl
+from start_camera.control_page import ControlPage, ControlPageError, FailureLimiter
+from start_camera.discovery import primary_address
+from start_camera.errors import ClockNotSynchronisedError, SequencesError
 from start_camera.events import Event, EventHub, EventKind
 from start_camera.ingest import Frame, FrameSource
 from start_camera.media_server import MediaServerError
+from start_camera.network_api import NetworkApi
 from start_camera.overlays.countdown import RaceDisplay, RaceSummary
 from start_camera.overlays.factory import build_compositor
 from start_camera.pipeline import Streaming, addresses_for_viewers
@@ -111,19 +117,6 @@ __all__ = [
 #
 
 
-class SequencesError(ValueError):
-    """Sequences can't be used, for the reasons in problems."""
-
-    def __init__(self, problems: list[str]) -> None:
-        """Hold the problems, one per line of the message."""
-        super().__init__("\n".join(["The sequences can't be used:", *problems]))
-        self.problems = problems
-
-
-class ClockNotSynchronisedError(RaceClockError):
-    """A start time can't be accepted, as this computer's clock may be wrong."""
-
-
 @dataclass(frozen=True)
 class ClockStatus:
     """This computer's clock, for checking it against the race control suite's.
@@ -142,7 +135,8 @@ class SystemStatus:
     """A snapshot of the whole system.
 
     Times are seconds since the epoch. display is what the video's countdown shows,
-    which allows for the camera's delay.
+    which allows for the camera's delay. youtube is "off", "connecting", or "live"
+    when video is reaching YouTube.
     """
 
     time: float
@@ -154,6 +148,7 @@ class SystemStatus:
     camera_live: bool
     streaming: bool
     recording: bool
+    youtube: str = "off"
 
 
 def _checked_sequences(sequences: SequencesConfig | dict[str, Any]) -> SequencesConfig:
@@ -194,6 +189,27 @@ def _seconds(moment: datetime | float) -> float:
             raise ValueError("A start time needs a time zone")
         return moment.timestamp()
     return float(moment)
+
+
+class _SystemRecording:
+    """Lets the phone page start and stop recording through the system."""
+
+    def __init__(self, system: "CameraSystem") -> None:
+        """Hold the system."""
+        self._system = system
+
+    @property
+    def is_recording(self) -> bool:
+        """Return whether recording is on."""
+        return self._system.is_recording
+
+    def start(self) -> None:
+        """Start recording."""
+        self._system.start_recording()
+
+    def stop(self) -> None:
+        """Stop recording."""
+        self._system.stop_recording()
 
 
 class Source(Protocol):
@@ -257,6 +273,7 @@ class CameraSystem:
         self._last_difference: float | None = None
         self._config_path = Path(config_path) if config_path else None
         self._events = EventHub()
+        self._page: ControlPage | None = None
         self._watcher = Watcher(self.control, self._events, clock, self._system_state)
 
     @classmethod
@@ -299,7 +316,13 @@ class CameraSystem:
             camera_live=self.camera_is_live(),
             streaming=self.is_streaming,
             recording=self.is_recording,
+            youtube=self.youtube_state(),
         )
+
+    def youtube_state(self) -> str:
+        """Return "off", "connecting", or "live" when video is reaching YouTube."""
+        streaming = self._streaming
+        return streaming.youtube_state if streaming is not None else "off"
 
     def start_now(self) -> None:
         """Bring the next start forward so its warning signal is now.
@@ -468,9 +491,58 @@ class CameraSystem:
         return self._streaming is not None
 
     def start(self) -> None:
-        """Start reading the camera for the preview, and watching for events."""
+        """Start the camera, events, and the phone page and network interface if set."""
         self._source.start()
         self._watcher.start()
+        if self._page is None:
+            self._page = self._start_page()
+
+    def _start_page(self) -> ControlPage | None:
+        """Start the phone page and the network interface, if either is set up.
+
+        Neither is needed for the video, so a problem is only logged.
+        """
+        secrets = self.secrets
+        password = secrets.control_password
+        api = self._network_api()
+        if password is None:
+            logger.info("No control_password in the secrets, so the phone page is off")
+        if password is None and api is None:
+            return None
+        address = primary_address() or "localhost"
+        try:
+            page = ControlPage(
+                self.config,
+                self.control,
+                password.get_secret_value() if password else None,
+                address=address,
+                certificate_directory=control_page.CERTIFICATE_DIRECTORY,
+                recorder=_SystemRecording(self),
+                api=api,
+            )
+        except (ControlPageError, OSError) as error:
+            logger.error("The phone page and network interface are off: %s", error)
+            return None
+        if password is not None:
+            logger.info("Race officer's phone page: https://%s:%d/", address, page.port)
+        if api is not None:
+            logger.info("Network interface: https://%s:%d/api/v1/", address, page.port)
+        return page
+
+    def _network_api(self) -> NetworkApi | None:
+        """Return the network interface, if there's a token for it."""
+        token, read = self.secrets.api_token, self.secrets.api_read_token
+        if token is None and read is None:
+            logger.info("No api_token in the secrets, so the network interface is off")
+            return None
+        if token and read and token.get_secret_value() == read.get_secret_value():
+            logger.warning("api_read_token is the same as api_token, so it can control")
+        return NetworkApi(
+            self,
+            token.get_secret_value() if token else None,
+            read.get_secret_value() if read else None,
+            FailureLimiter(time.time),
+        )
 
     def subscribe(self, listener: Callable[[Event], None]) -> Callable[[], None]:
         """Call a function with every event from now on.
@@ -574,6 +646,9 @@ class CameraSystem:
 
     def close(self) -> None:
         """Stop everything."""
+        if self._page is not None:
+            self._page.stop()
+            self._page = None
         self.stop_stream()
         self._watcher.stop()
         # The last check publishes the stream stopping, before the camera stops.
